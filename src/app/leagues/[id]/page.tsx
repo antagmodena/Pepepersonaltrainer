@@ -10,7 +10,7 @@ interface Member {
   wins: number;
   losses: number;
   handicap: number;
-  profile?: { full_name: string };
+  profile: { full_name: string } | null;
 }
 
 interface Match {
@@ -23,10 +23,6 @@ interface Match {
   score_team2: string;
   winner_team: number;
   played_at: string;
-  profiles1?: { full_name: string };
-  profiles2?: { full_name: string };
-  profiles3?: { full_name: string };
-  profiles4?: { full_name: string };
 }
 
 export default function LeagueDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +32,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [copied, setCopied] = useState(false);
 
   const supabase = createClient();
 
@@ -45,7 +42,6 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
     const { data: { user } } = await supabase.auth.getUser();
     if (user) setCurrentUserId(user.id);
 
-    // Lega
     const { data: leagueData } = await supabase
       .from('leagues')
       .select('*')
@@ -53,30 +49,44 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
       .single();
     setLeague(leagueData);
 
-    // Membri con profili
     const { data: membersData } = await supabase
       .from('league_members')
-      .select('*, profile:profiles(full_name)')
+      .select('user_id, points, wins, losses, handicap, profile:profiles(full_name)')
       .eq('league_id', id)
       .order('points', { ascending: false });
-    setMembers(membersData || []);
+    
+    const formatted = (membersData || []).map((d: any) => ({
+      user_id: d.user_id,
+      points: d.points,
+      wins: d.wins,
+      losses: d.losses,
+      handicap: d.handicap,
+      profile: d.profile
+    }));
+    setMembers(formatted);
 
-    // Partite
     const { data: matchesData } = await supabase
       .from('matches')
-      .select(`
-        *,
-        profiles1:profiles!matches_player1_id_fkey(full_name),
-        profiles2:profiles!matches_player2_id_fkey(full_name),
-        profiles3:profiles!matches_player3_id_fkey(full_name),
-        profiles4:profiles!matches_player4_id_fkey(full_name)
-      `)
+      .select('*')
       .eq('league_id', id)
       .order('played_at', { ascending: false })
       .limit(10);
     setMatches(matchesData || []);
 
     setLoading(false);
+  };
+
+  const copyCode = async () => {
+    if (league?.code) {
+      await navigator.clipboard.writeText(league.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const shareWhatsApp = () => {
+    const text = `🎾 Unisciti alla mia lega di Padel "${league?.name}"!\n\nCodice: ${league?.code}\n\nScarica l'app: https://pepepersonaltrainer.vercel.app`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const getPositionStyle = (index: number) => {
@@ -86,8 +96,9 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
     return { emoji: `${index + 1}`, color: '#64748B' };
   };
 
-  const getFirstName = (fullName: string | undefined) => {
-    return fullName?.split(' ')[0] || '?';
+  const getPlayerName = (playerId: string) => {
+    const member = members.find(m => m.user_id === playerId);
+    return member?.profile?.full_name?.split(' ')[0] || '?';
   };
 
   if (loading) {
@@ -123,7 +134,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div style={{ padding: '0 20px' }}>
-        {/* Codice Invito */}
+        {/* Codice Invito con Bottoni */}
         <div style={{
           background: '#fff',
           borderRadius: '20px',
@@ -142,29 +153,80 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
             background: '#FEF3C7',
             padding: '12px 20px',
             borderRadius: '12px',
-            display: 'inline-block'
+            display: 'inline-block',
+            marginBottom: '16px'
           }}>
             {league?.code}
           </p>
+          
+          {/* Bottoni Condividi */}
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <button
+              onClick={copyCode}
+              style={{
+                padding: '12px 20px',
+                background: copied ? '#DCFCE7' : '#F1F5F9',
+                color: copied ? '#16A34A' : '#64748B',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {copied ? '✓ Copiato!' : '📋 Copia'}
+            </button>
+            <button
+              onClick={shareWhatsApp}
+              style={{
+                padding: '12px 20px',
+                background: '#25D366',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📱 WhatsApp
+            </button>
+          </div>
         </div>
 
-        {/* Nuova Partita */}
-        <Link href={`/leagues/${id}/match/new`} style={{ textDecoration: 'none' }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
-            borderRadius: '16px',
-            padding: '16px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            marginBottom: '20px',
-            boxShadow: '0 8px 32px rgba(34, 197, 94, 0.3)'
-          }}>
-            <span style={{ fontSize: '20px' }}>🎾</span>
-            <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>Registra Partita</span>
-          </div>
-        </Link>
+        {/* Azioni Rapide */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <Link href={`/leagues/${id}/match/new`} style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
+              borderRadius: '16px',
+              padding: '16px',
+              textAlign: 'center',
+              boxShadow: '0 4px 16px rgba(34, 197, 94, 0.3)'
+            }}>
+              <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🎾</span>
+              <span style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>Nuova Partita</span>
+            </div>
+          </Link>
+          <Link href={`/calendar/new?league=${id}`} style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+              borderRadius: '16px',
+              padding: '16px',
+              textAlign: 'center',
+              boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)'
+            }}>
+              <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📅</span>
+              <span style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>Pianifica</span>
+            </div>
+          </Link>
+        </div>
 
         {/* Classifica */}
         <div style={{
@@ -177,43 +239,49 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
           <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
             🏆 Classifica
           </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {members.map((member, index) => {
-              const pos = getPositionStyle(index);
-              const isMe = member.user_id === currentUserId;
-              return (
-                <div
-                  key={member.user_id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '14px 16px',
-                    background: isMe ? '#FEF3C7' : '#F8FAFC',
-                    borderRadius: '14px',
-                    border: isMe ? '2px solid #F59E0B' : '2px solid transparent'
-                  }}
-                >
-                  <span style={{ fontSize: index < 3 ? '24px' : '16px', width: '32px', textAlign: 'center', color: pos.color, fontWeight: 700 }}>
-                    {pos.emoji}
-                  </span>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: 600, fontSize: '15px', color: '#1a1a2e' }}>
-                      {member.profile?.full_name || 'Giocatore'}
-                      {isMe && <span style={{ color: '#F59E0B', marginLeft: '8px' }}>← Tu</span>}
-                    </p>
-                    <p style={{ fontSize: '12px', color: '#64748B' }}>
-                      {member.wins}W - {member.losses}L • HC {member.handicap}
-                    </p>
+          {members.length === 0 ? (
+            <p style={{ color: '#94A3B8', textAlign: 'center', padding: '20px' }}>
+              Invita amici per iniziare! 👥
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {members.map((member, index) => {
+                const pos = getPositionStyle(index);
+                const isMe = member.user_id === currentUserId;
+                return (
+                  <div
+                    key={member.user_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '14px 16px',
+                      background: isMe ? '#FEF3C7' : '#F8FAFC',
+                      borderRadius: '14px',
+                      border: isMe ? '2px solid #F59E0B' : '2px solid transparent'
+                    }}
+                  >
+                    <span style={{ fontSize: index < 3 ? '24px' : '16px', width: '32px', textAlign: 'center', color: pos.color, fontWeight: 700 }}>
+                      {pos.emoji}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontWeight: 600, fontSize: '15px', color: '#1a1a2e' }}>
+                        {member.profile?.full_name || 'Giocatore'}
+                        {isMe && <span style={{ color: '#F59E0B', marginLeft: '8px', fontSize: '12px' }}>Tu</span>}
+                      </p>
+                      <p style={{ fontSize: '12px', color: '#64748B' }}>
+                        {member.wins}V - {member.losses}S • HC {member.handicap}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: '20px', fontWeight: 800, color: pos.color }}>{member.points}</p>
+                      <p style={{ fontSize: '10px', color: '#94A3B8' }}>PTS</p>
+                    </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: '20px', fontWeight: 800, color: pos.color }}>{member.points}</p>
-                    <p style={{ fontSize: '10px', color: '#94A3B8' }}>PUNTI</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Ultime Partite */}
@@ -228,7 +296,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
           </h2>
           {matches.length === 0 ? (
             <p style={{ color: '#94A3B8', textAlign: 'center', padding: '20px' }}>
-              Nessuna partita ancora. Registra la prima! 🎾
+              Nessuna partita ancora. Giocate e registrate! 🎾
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -249,12 +317,15 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                         color: match.winner_team === 1 ? '#16A34A' : '#64748B'
                       }}>
                         {match.winner_team === 1 && '🏆 '}
-                        {getFirstName(match.profiles1?.full_name)} + {getFirstName(match.profiles2?.full_name)}
+                        {getPlayerName(match.player1_id)} + {getPlayerName(match.player2_id)}
                       </p>
                     </div>
                     <div style={{ padding: '0 12px', textAlign: 'center' }}>
                       <p style={{ fontWeight: 700, fontSize: '16px', color: '#1a1a2e' }}>
-                        {match.score_team1} - {match.score_team2}
+                        {match.score_team1}
+                      </p>
+                      <p style={{ fontWeight: 700, fontSize: '16px', color: '#1a1a2e' }}>
+                        {match.score_team2}
                       </p>
                     </div>
                     <div style={{ flex: 1, textAlign: 'right' }}>
@@ -263,7 +334,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                         fontSize: '14px',
                         color: match.winner_team === 2 ? '#16A34A' : '#64748B'
                       }}>
-                        {getFirstName(match.profiles3?.full_name)} + {getFirstName(match.profiles4?.full_name)}
+                        {getPlayerName(match.player3_id)} + {getPlayerName(match.player4_id)}
                         {match.winner_team === 2 && ' 🏆'}
                       </p>
                     </div>
