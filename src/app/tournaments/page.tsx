@@ -6,101 +6,104 @@ export default async function TournamentsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
-  if (!user) redirect('/login');
+  if (!user) {
+    redirect('/login');
+  }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const isCoach = profile?.role === 'coach';
-
-  // Allievo vede i suoi tornei + quelli assegnati dal coach
-  // Coach vede i tornei che ha assegnato
   const { data: tournaments } = await supabase
-    .from('events')
-    .select('*, created_for:profiles!events_created_for_user_id_fkey(full_name), created_by:profiles!events_created_by_coach_id_fkey(full_name)')
-    .eq('is_tournament', true)
-    .or(isCoach 
-      ? `created_by_coach_id.eq.${user.id}` 
-      : `user_id.eq.${user.id},created_for_user_id.eq.${user.id}`
-    )
-    .order('event_date', { ascending: true });
+    .from('tournaments')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('date', { ascending: false });
 
   return (
-    <div className="min-h-screen p-4 pb-20">
-      <div className="max-w-lg mx-auto">
-        
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/dashboard" className="text-[var(--color-blue)] font-medium">
-            ← Indietro
-          </Link>
-          <h1 className="text-xl font-bold text-[var(--color-dark-blue)]">Tornei</h1>
-          <Link href="/tournaments/new" className="btn-primary text-sm py-2 px-4">
-            + Nuovo
-          </Link>
-        </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
+      paddingBottom: '100px'
+    }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)',
+        padding: '48px 24px 32px',
+        borderRadius: '0 0 32px 32px',
+        marginBottom: '24px'
+      }}>
+        <Link href="/dashboard" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>
+          ← Dashboard
+        </Link>
+        <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, marginTop: '8px' }}>
+          🏆 I miei Tornei
+        </h1>
+      </div>
 
-        {!tournaments || tournaments.length === 0 ? (
-          <div className="card text-center py-8">
-            <span className="text-4xl mb-4 block">🏆</span>
-            <p className="text-[var(--color-gray)]">Nessun torneo in programma</p>
+      <div style={{ padding: '0 20px' }}>
+        <Link href="/tournaments/new" style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            marginBottom: '20px',
+            boxShadow: '0 8px 32px rgba(0, 102, 255, 0.3)'
+          }}>
+            <span style={{ fontSize: '20px' }}>➕</span>
+            <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>Aggiungi Torneo</span>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {tournaments.map(t => {
-              const isPast = new Date(t.event_date) < new Date();
-              const isAssignedByCoach = t.created_by_coach_id && !isCoach;
+        </Link>
 
-              return (
-                <div key={t.id} className={`card ${isPast ? 'opacity-60' : ''}`}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-[var(--color-dark-blue)]">
-                        🏆 {t.title}
-                      </h3>
-                      <p className="text-sm text-[var(--color-gray)]">
-                        {new Date(t.event_date).toLocaleDateString('it-IT', {
-                          weekday: 'long',
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric'
-                        })}
-                      </p>
-                      {t.location && (
-                        <p className="text-sm text-[var(--color-gray)]">📍 {t.location}</p>
-                      )}
-                      {t.tournament_category && (
-                        <span className="inline-block mt-2 text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                          {t.tournament_category}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      {isAssignedByCoach && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          👨‍🏫 Assegnato
-                        </span>
-                      )}
-                      {isCoach && t.created_for?.full_name && (
-                        <p className="text-sm text-[var(--color-gray)] mt-1">
-                          Per: {t.created_for.full_name}
-                        </p>
-                      )}
-                    </div>
+        <div style={{
+          background: '#fff',
+          borderRadius: '24px',
+          padding: '20px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+          border: '1px solid rgba(0,0,0,0.04)'
+        }}>
+          {!tournaments || tournaments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <span style={{ fontSize: '48px', display: 'block', marginBottom: '16px' }}>🏆</span>
+              <p style={{ color: '#94A3B8', fontSize: '15px' }}>Nessun torneo registrato</p>
+              <p style={{ color: '#94A3B8', fontSize: '14px' }}>Aggiungi il tuo primo torneo!</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {tournaments.map(tournament => (
+                <div key={tournament.id} style={{
+                  padding: '16px',
+                  background: '#F8FAFC',
+                  borderRadius: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e' }}>{tournament.name}</h3>
+                    {tournament.result && (
+                      <span style={{
+                        background: tournament.result.includes('1') ? '#FEF3C7' : '#F1F5F9',
+                        color: tournament.result.includes('1') ? '#D97706' : '#64748B',
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}>
+                        {tournament.result.includes('1') ? '🥇' : '🎾'} {tournament.result}
+                      </span>
+                    )}
                   </div>
-                  {t.notes && (
-                    <p className="mt-3 text-sm text-[var(--color-gray)] border-t pt-3">
-                      {t.notes}
-                    </p>
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#64748B' }}>
+                    <span>📅 {new Date(tournament.date).toLocaleDateString('it-IT')}</span>
+                    {tournament.location && <span>📍 {tournament.location}</span>}
+                  </div>
+                  {tournament.partner && (
+                    <div style={{ marginTop: '8px', fontSize: '13px', color: '#64748B' }}>
+                      👥 Partner: {tournament.partner}
+                    </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

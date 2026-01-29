@@ -1,121 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
-:root {
-  --color-white: #ffffff;
-  --color-light: #f0f7ff;
-  --color-azure: #4da6ff;
-  --color-blue: #1e5fa8;
-  --color-dark-blue: #0d3b6e;
-  --color-gray: #64748b;
-  --color-light-gray: #e2e8f0;
+@theme {
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --color-primary: #0066FF;
+  --color-primary-light: #3B82F6;
+  --color-teal: #14B8A6;
+  --color-dark: #1a1a2e;
+  --color-gray-50: #F8FAFC;
+  --color-gray-100: #F1F5F9;
+  --color-gray-200: #E2E8F0;
+  --color-gray-400: #94A3B8;
+  --color-gray-500: #64748B;
+  --color-gray-600: #475569;
+  --color-gray-900: #0F172A;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  background: linear-gradient(135deg, var(--color-light) 0%, var(--color-white) 100%);
-  color: var(--color-dark-blue);
-  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #F8FAFC;
+  color: #1a1a2e;
 }
 
-.checkbox-large {
-  width: 1.5rem;
-  height: 1.5rem;
-  accent-color: var(--color-blue);
-  cursor: pointer;
-}
-
-.input-field {
-  background: var(--color-white);
-  border: 2px solid var(--color-light-gray);
-  border-radius: 0.75rem;
-  padding: 0.875rem 1rem;
-  font-size: 1rem;
-  width: 100%;
-  transition: all 0.2s;
-}
-
-.input-field:focus {
-  outline: none;
-  border-color: var(--color-azure);
-  box-shadow: 0 0 0 3px rgba(77, 166, 255, 0.2);
-}
-
-.card {
-  background: var(--color-white);
-  border-radius: 1rem;
-  box-shadow: 0 4px 20px rgba(30, 95, 168, 0.08);
-  padding: 1.5rem;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--color-azure) 0%, var(--color-blue) 100%);
-  color: white;
-  padding: 0.875rem 1.5rem;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(30, 95, 168, 0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(30, 95, 168, 0.4);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-secondary {
-  background: var(--color-light);
-  color: var(--color-blue);
-  padding: 0.875rem 1.5rem;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  border: 2px solid var(--color-azure);
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: var(--color-azure);
-  color: white;
-}
-
-.section-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-blue);
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 3px solid var(--color-azure);
-}
-
-.menu-card {
-  background: var(--color-white);
-  border: 2px solid var(--color-light-gray);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.menu-card:hover {
-  border-color: var(--color-azure);
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(30, 95, 168, 0.15);
-}
-
-.badge-training { background: #dbeafe; color: #1e40af; padding: 0.375rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; }
-.badge-match { background: #fce7f3; color: #9d174d; padding: 0.375rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; }
-.badge-tournament { background: #fef3c7; color: #92400e; padding: 0.375rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; }
-.badge-lesson { background: #d1fae5; color: #065f46; padding: 0.375rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; }
-
-.header-gradient {
-  background: linear-gradient(135deg, var(--color-blue) 0%, var(--color-dark-blue) 100%);
-  color: white;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+.pb-nav {
+  padding-bottom: 100px;
 }

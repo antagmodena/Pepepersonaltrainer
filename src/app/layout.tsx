@@ -1,39 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import InstallPrompt from "@/components/InstallPrompt";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
   title: "Pepe Padel Trainer",
-  description: "App per allenamento padel - traccia progressi, errori e obiettivi",
+  description: "Il tuo diario di allenamento padel",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "Padel Trainer",
-  },
-  icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    statusBarStyle: "black-translucent",
+    title: "Pepe Padel",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1e5fa8",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#0066FF",
 };
 
 export default function RootLayout({
@@ -45,12 +30,12 @@ export default function RootLayout({
     <html lang="it">
       <head>
         <link rel="apple-touch-icon" href="/icon.svg" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
-        <InstallPrompt />
+      <body>
+        <main className="min-h-screen pb-nav">
+          {children}
+        </main>
+        <BottomNav />
       </body>
     </html>
   );

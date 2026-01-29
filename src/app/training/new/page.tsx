@@ -5,6 +5,27 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
+const inputStyle = {
+  width: '100%',
+  padding: '14px 16px',
+  fontSize: '15px',
+  border: '2px solid #E2E8F0',
+  borderRadius: '12px',
+  outline: 'none',
+  transition: 'border-color 0.2s',
+  background: '#fff'
+};
+
+const checkboxContainerStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+  padding: '12px 16px',
+  background: '#F8FAFC',
+  borderRadius: '12px',
+  cursor: 'pointer'
+};
+
 function TrainingForm() {
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date');
@@ -83,77 +104,139 @@ function TrainingForm() {
     }
   };
 
+  const SectionCard = ({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) => (
+    <div style={{
+      background: '#fff',
+      borderRadius: '20px',
+      padding: '20px',
+      marginBottom: '16px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+      border: '1px solid rgba(0,0,0,0.04)'
+    }}>
+      <h2 style={{
+        fontSize: '16px',
+        fontWeight: 700,
+        color: '#1a1a2e',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <span>{icon}</span> {title}
+      </h2>
+      {children}
+    </div>
+  );
+
+  const Checkbox = ({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) => (
+    <label style={checkboxContainerStyle}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: '20px', height: '20px', accentColor: '#0066FF' }}
+      />
+      <span style={{ fontSize: '15px', color: '#1a1a2e' }}>{label}</span>
+    </label>
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit}>
       {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-200">
+        <div style={{
+          background: '#FEF2F2',
+          color: '#DC2626',
+          padding: '16px',
+          borderRadius: '12px',
+          marginBottom: '16px',
+          fontSize: '14px'
+        }}>
           {error}
         </div>
       )}
       
-      <div className="card">
-        <h2 className="section-title">📋 Informazioni generali</h2>
-        <div className="space-y-4">
+      <SectionCard title="Informazioni generali" icon="📋">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="block text-sm font-semibold mb-2">Data</label>
-            <input type="date" value={trainingDate} onChange={(e) => setTrainingDate(e.target.value)} className="input-field" required />
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: '#1a1a2e' }}>Data</label>
+            <input type="date" value={trainingDate} onChange={(e) => setTrainingDate(e.target.value)} style={inputStyle} required />
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-2">Tipo sessione</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setSessionType('training')} className={`p-3 rounded-xl border-2 transition-all ${sessionType === 'training' ? 'border-[var(--color-azure)] bg-[var(--color-light)]' : 'border-[var(--color-light-gray)]'}`}>🏋️ Allenamento</button>
-              <button type="button" onClick={() => setSessionType('match')} className={`p-3 rounded-xl border-2 transition-all ${sessionType === 'match' ? 'border-[var(--color-azure)] bg-[var(--color-light)]' : 'border-[var(--color-light-gray)]'}`}>🎮 Partita</button>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: '#1a1a2e' }}>Tipo sessione</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button type="button" onClick={() => setSessionType('training')} style={{
+                padding: '14px',
+                borderRadius: '12px',
+                border: sessionType === 'training' ? '2px solid #0066FF' : '2px solid #E2E8F0',
+                background: sessionType === 'training' ? '#EFF6FF' : '#fff',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}>🏋️ Allenamento</button>
+              <button type="button" onClick={() => setSessionType('match')} style={{
+                padding: '14px',
+                borderRadius: '12px',
+                border: sessionType === 'match' ? '2px solid #0066FF' : '2px solid #E2E8F0',
+                background: sessionType === 'match' ? '#EFF6FF' : '#fff',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}>🎮 Partita</button>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-2">Compagni di gioco</label>
-            <input type="text" value={partners} onChange={(e) => setPartners(e.target.value)} className="input-field" placeholder="Es: Marco, Luca" />
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: '#1a1a2e' }}>Compagni di gioco</label>
+            <input type="text" value={partners} onChange={(e) => setPartners(e.target.value)} style={inputStyle} placeholder="Es: Marco, Luca" />
           </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={coachPresent} onChange={(e) => setCoachPresent(e.target.checked)} className="checkbox-large" />
-            <span className="font-medium">Maestro presente</span>
-          </label>
+          <Checkbox checked={coachPresent} onChange={setCoachPresent} label="👨‍🏫 Maestro presente" />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="card">
-        <h2 className="section-title">🎯 Obiettivo della sessione</h2>
-        <textarea value={objective} onChange={(e) => setObjective(e.target.value)} className="input-field min-h-[100px]" placeholder="Su cosa dovevo lavorare oggi?" />
-      </div>
+      <SectionCard title="Obiettivo della sessione" icon="🎯">
+        <textarea value={objective} onChange={(e) => setObjective(e.target.value)} style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }} placeholder="Su cosa dovevo lavorare oggi?" />
+      </SectionCard>
 
-      <div className="card">
-        <h2 className="section-title">✅ Cose fatte bene</h2>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={doneWellIntensity} onChange={(e) => setDoneWellIntensity(e.target.checked)} className="checkbox-large" /><span>Intensità</span></label>
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={doneWellConcentration} onChange={(e) => setDoneWellConcentration(e.target.checked)} className="checkbox-large" /><span>Concentrazione</span></label>
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={doneWellAttitude} onChange={(e) => setDoneWellAttitude(e.target.checked)} className="checkbox-large" /><span>Attitudine</span></label>
-          <div><label className="block text-sm font-medium mb-2">Altro</label><input type="text" value={doneWellOther} onChange={(e) => setDoneWellOther(e.target.value)} className="input-field" placeholder="Specifica..." /></div>
+      <SectionCard title="Cose fatte bene" icon="✅">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Checkbox checked={doneWellIntensity} onChange={setDoneWellIntensity} label="Intensità" />
+          <Checkbox checked={doneWellConcentration} onChange={setDoneWellConcentration} label="Concentrazione" />
+          <Checkbox checked={doneWellAttitude} onChange={setDoneWellAttitude} label="Attitudine" />
+          <input type="text" value={doneWellOther} onChange={(e) => setDoneWellOther(e.target.value)} style={{ ...inputStyle, marginTop: '8px' }} placeholder="Altro..." />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="card">
-        <h2 className="section-title">⚠️ Aspetti da migliorare</h2>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={improvePosition} onChange={(e) => setImprovePosition(e.target.checked)} className="checkbox-large" /><span>Posizione in campo</span></label>
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={improveDecisionMaking} onChange={(e) => setImproveDecisionMaking(e.target.checked)} className="checkbox-large" /><span>Presa di decisioni</span></label>
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={improvePartnerCommunication} onChange={(e) => setImprovePartnerCommunication(e.target.checked)} className="checkbox-large" /><span>Comunicazione col compagno</span></label>
-          <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={improveErrorManagement} onChange={(e) => setImproveErrorManagement(e.target.checked)} className="checkbox-large" /><span>Gestione degli errori</span></label>
-          <div><label className="block text-sm font-medium mb-2">Altro</label><input type="text" value={improveOther} onChange={(e) => setImproveOther(e.target.value)} className="input-field" placeholder="Specifica..." /></div>
+      <SectionCard title="Aspetti da migliorare" icon="⚠️">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Checkbox checked={improvePosition} onChange={setImprovePosition} label="Posizione in campo" />
+          <Checkbox checked={improveDecisionMaking} onChange={setImproveDecisionMaking} label="Presa di decisioni" />
+          <Checkbox checked={improvePartnerCommunication} onChange={setImprovePartnerCommunication} label="Comunicazione col compagno" />
+          <Checkbox checked={improveErrorManagement} onChange={setImproveErrorManagement} label="Gestione degli errori" />
+          <input type="text" value={improveOther} onChange={(e) => setImproveOther(e.target.value)} style={{ ...inputStyle, marginTop: '8px' }} placeholder="Altro..." />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="card">
-        <h2 className="section-title">📝 Note personali</h2>
-        <textarea value={personalNotes} onChange={(e) => setPersonalNotes(e.target.value)} className="input-field min-h-[100px]" placeholder="Come mi sono sentito?" />
-      </div>
+      <SectionCard title="Note personali" icon="📝">
+        <textarea value={personalNotes} onChange={(e) => setPersonalNotes(e.target.value)} style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }} placeholder="Come mi sono sentito?" />
+      </SectionCard>
 
-      <div className="card">
-        <h2 className="section-title">💬 Il mio feedback</h2>
-        <textarea value={studentFeedback} onChange={(e) => setStudentFeedback(e.target.value)} className="input-field min-h-[100px]" placeholder="Cosa penso del mio allenamento..." />
-      </div>
+      <SectionCard title="Il mio feedback" icon="💬">
+        <textarea value={studentFeedback} onChange={(e) => setStudentFeedback(e.target.value)} style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }} placeholder="Cosa penso del mio allenamento..." />
+      </SectionCard>
 
-      <button type="submit" disabled={loading} className="btn-primary w-full">
-        {loading ? 'Salvataggio...' : 'Salva Scheda'}
+      <button type="submit" disabled={loading} style={{
+        width: '100%',
+        padding: '16px',
+        background: loading ? '#94A3B8' : 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '14px',
+        fontSize: '16px',
+        fontWeight: 700,
+        cursor: loading ? 'not-allowed' : 'pointer',
+        boxShadow: '0 8px 32px rgba(0, 102, 255, 0.3)',
+        marginBottom: '20px'
+      }}>
+        {loading ? 'Salvataggio...' : '💾 Salva Scheda'}
       </button>
     </form>
   );
@@ -161,14 +244,28 @@ function TrainingForm() {
 
 export default function NewTrainingCard() {
   return (
-    <div className="min-h-screen p-4 pb-20">
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/calendar" className="text-[var(--color-blue)] font-medium">← Annulla</Link>
-          <h1 className="text-xl font-bold text-[var(--color-dark-blue)]">Nuova Scheda</h1>
-          <div className="w-16"></div>
-        </div>
-        <Suspense fallback={<div className="text-center py-8">Caricamento...</div>}>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
+      paddingBottom: '100px'
+    }}>
+      {/* Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)',
+        padding: '48px 24px 32px',
+        borderRadius: '0 0 32px 32px',
+        marginBottom: '24px'
+      }}>
+        <Link href="/calendar" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>
+          ← Annulla
+        </Link>
+        <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, marginTop: '8px' }}>
+          ✍️ Nuova Scheda
+        </h1>
+      </div>
+
+      <div style={{ padding: '0 20px' }}>
+        <Suspense fallback={<div style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>Caricamento...</div>}>
           <TrainingForm />
         </Suspense>
       </div>

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import DeleteCardButton from './DeleteCardButton';
 
 export default async function TrainingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,109 +16,140 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
     .from('training_cards')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
     .single();
 
   if (!card) {
     redirect('/training');
   }
 
-  return (
-    <div className="min-h-screen p-4 pb-20">
-      <div className="max-w-lg mx-auto">
-        
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/training" className="text-[var(--color-blue)] font-medium">
-            ← Indietro
-          </Link>
-          <h1 className="text-xl font-bold text-[var(--color-dark-blue)]">Scheda</h1>
-          <div className="w-16"></div>
-        </div>
+  // Verifica che l'utente sia il proprietario della scheda
+  const isOwner = card.user_id === user.id;
 
-        <div className="header-gradient mb-6">
-          <h2 className="text-xl font-bold">
-            {card.session_type === 'training' ? '🏋️ Allenamento' : '🎮 Partita'}
-          </h2>
-          <p className="text-blue-100">
-            {new Date(card.training_date).toLocaleDateString('it-IT', { 
-              weekday: 'long', 
-              day: 'numeric', 
-              month: 'long', 
-              year: 'numeric' 
-            })}
-          </p>
-          {card.partners && card.partners.length > 0 && (
-            <p className="text-blue-100 text-sm mt-1">Con: {card.partners.join(', ')}</p>
-          )}
-        </div>
+  const Section = ({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) => (
+    <div style={{
+      background: '#fff',
+      borderRadius: '20px',
+      padding: '20px',
+      marginBottom: '16px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+      border: '1px solid rgba(0,0,0,0.04)'
+    }}>
+      <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span>{icon}</span> {title}
+      </h2>
+      {children}
+    </div>
+  );
+
+  const CheckItem = ({ checked, label }: { checked: boolean; label: string }) => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '10px 14px',
+      background: checked ? '#DCFCE7' : '#F8FAFC',
+      borderRadius: '10px',
+      marginBottom: '8px'
+    }}>
+      <span style={{ fontSize: '16px' }}>{checked ? '✅' : '⬜'}</span>
+      <span style={{ fontSize: '14px', color: checked ? '#16A34A' : '#94A3B8' }}>{label}</span>
+    </div>
+  );
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
+      paddingBottom: '100px'
+    }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)',
+        padding: '48px 24px 32px',
+        borderRadius: '0 0 32px 32px',
+        marginBottom: '24px'
+      }}>
+        <Link href="/training" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>
+          ← Le mie Schede
+        </Link>
+        <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, marginTop: '8px' }}>
+          {card.session_type === 'training' ? '🏋️ Allenamento' : '🎮 Partita'}
+        </h1>
+        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginTop: '4px' }}>
+          {new Date(card.training_date).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
+      </div>
+
+      <div style={{ padding: '0 20px' }}>
+        <Section title="Informazioni" icon="📋">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
+              <span style={{ color: '#64748B', fontSize: '14px' }}>Tipo</span>
+              <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{card.session_type === 'training' ? '🏋️ Allenamento' : '🎮 Partita'}</span>
+            </div>
+            {card.partners && card.partners.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
+                <span style={{ color: '#64748B', fontSize: '14px' }}>Compagni</span>
+                <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{card.partners.join(', ')}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
+              <span style={{ color: '#64748B', fontSize: '14px' }}>Maestro presente</span>
+              <span style={{ fontWeight: 600, color: card.coach_present ? '#16A34A' : '#94A3B8' }}>{card.coach_present ? '✅ Sì' : '❌ No'}</span>
+            </div>
+          </div>
+        </Section>
 
         {card.objective && (
-          <div className="card mb-4">
-            <h3 className="section-title">🎯 Obiettivo</h3>
-            <p>{card.objective}</p>
-          </div>
+          <Section title="Obiettivo" icon="🎯">
+            <p style={{ color: '#1a1a2e', fontSize: '15px', lineHeight: 1.6 }}>{card.objective}</p>
+          </Section>
         )}
 
-        <div className="card mb-4">
-          <h3 className="section-title">✅ Cose fatte bene</h3>
-          <div className="flex flex-wrap gap-2">
-            {card.done_well_intensity && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">Intensità</span>}
-            {card.done_well_concentration && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">Concentrazione</span>}
-            {card.done_well_attitude && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">Attitudine</span>}
-            {card.done_well_other && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">{card.done_well_other}</span>}
-            {!card.done_well_intensity && !card.done_well_concentration && !card.done_well_attitude && !card.done_well_other && (
-              <span className="text-[var(--color-gray)]">Nessuno selezionato</span>
-            )}
-          </div>
-        </div>
+        <Section title="Cose fatte bene" icon="✅">
+          <CheckItem checked={card.done_well_intensity} label="Intensità" />
+          <CheckItem checked={card.done_well_concentration} label="Concentrazione" />
+          <CheckItem checked={card.done_well_attitude} label="Attitudine" />
+          {card.done_well_other && (
+            <div style={{ padding: '10px 14px', background: '#DCFCE7', borderRadius: '10px', marginTop: '8px' }}>
+              <span style={{ fontSize: '14px', color: '#16A34A' }}>➕ {card.done_well_other}</span>
+            </div>
+          )}
+        </Section>
 
-        <div className="card mb-4">
-          <h3 className="section-title">⚠️ Da migliorare</h3>
-          <div className="flex flex-wrap gap-2">
-            {card.improve_position && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm">Posizione</span>}
-            {card.improve_decision_making && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm">Decisioni</span>}
-            {card.improve_partner_communication && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm">Comunicazione</span>}
-            {card.improve_error_management && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm">Gestione errori</span>}
-            {card.improve_other && <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm">{card.improve_other}</span>}
-            {!card.improve_position && !card.improve_decision_making && !card.improve_partner_communication && !card.improve_error_management && !card.improve_other && (
-              <span className="text-[var(--color-gray)]">Nessuno selezionato</span>
-            )}
-          </div>
-        </div>
+        <Section title="Aspetti da migliorare" icon="⚠️">
+          <CheckItem checked={card.improve_position} label="Posizione in campo" />
+          <CheckItem checked={card.improve_decision_making} label="Presa di decisioni" />
+          <CheckItem checked={card.improve_partner_communication} label="Comunicazione col compagno" />
+          <CheckItem checked={card.improve_error_management} label="Gestione degli errori" />
+          {card.improve_other && (
+            <div style={{ padding: '10px 14px', background: '#FEF3C7', borderRadius: '10px', marginTop: '8px' }}>
+              <span style={{ fontSize: '14px', color: '#D97706' }}>➕ {card.improve_other}</span>
+            </div>
+          )}
+        </Section>
 
         {card.personal_notes && (
-          <div className="card mb-4">
-            <h3 className="section-title">📝 Note personali</h3>
-            <p className="text-[var(--color-gray)]">{card.personal_notes}</p>
-          </div>
+          <Section title="Note personali" icon="📝">
+            <p style={{ color: '#1a1a2e', fontSize: '15px', lineHeight: 1.6 }}>{card.personal_notes}</p>
+          </Section>
         )}
 
         {card.student_feedback && (
-          <div className="card mb-4">
-            <h3 className="section-title">💬 Il mio feedback</h3>
-            <p className="text-[var(--color-gray)]">{card.student_feedback}</p>
-          </div>
+          <Section title="Il mio feedback" icon="💬">
+            <p style={{ color: '#1a1a2e', fontSize: '15px', lineHeight: 1.6 }}>{card.student_feedback}</p>
+          </Section>
         )}
 
-        {card.coach_feedback ? (
-          <div className="card mb-4 border-2 border-[var(--color-azure)]">
-            <h3 className="section-title">👨‍🏫 Feedback del Maestro</h3>
-            <p className="text-[var(--color-dark-blue)]">{card.coach_feedback}</p>
-            {card.coach_feedback_at && (
-              <p className="text-xs text-[var(--color-gray)] mt-2">
-                Ricevuto il {new Date(card.coach_feedback_at).toLocaleDateString('it-IT')}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="card mb-4 bg-[var(--color-light)]">
-            <div className="text-center py-4 text-[var(--color-gray)]">
-              <span className="text-2xl mb-2 block">👨‍🏫</span>
-              <p>Nessun feedback del maestro ancora</p>
+        {card.coach_feedback && (
+          <Section title="Feedback del Maestro" icon="👨‍🏫">
+            <div style={{ background: '#EFF6FF', borderRadius: '12px', padding: '16px', border: '1px solid #BFDBFE' }}>
+              <p style={{ color: '#1E40AF', fontSize: '15px', lineHeight: 1.6 }}>{card.coach_feedback}</p>
             </div>
-          </div>
+          </Section>
         )}
 
+        {/* Pulsante Elimina (solo proprietario) */}
+        {isOwner && <DeleteCardButton cardId={card.id} />}
       </div>
     </div>
   );
