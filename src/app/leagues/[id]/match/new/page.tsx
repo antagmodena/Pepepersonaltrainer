@@ -8,6 +8,9 @@ import Link from 'next/link';
 interface Member {
   user_id: string;
   handicap: number;
+  points: number;
+  wins: number;
+  losses: number;
   profile: { full_name: string } | null;
 }
 
@@ -31,12 +34,15 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
   const loadMembers = async () => {
     const { data } = await supabase
       .from('league_members')
-      .select('user_id, handicap, profile:profiles(full_name)')
+      .select('user_id, handicap, points, wins, losses, profile:profiles(full_name)')
       .eq('league_id', leagueId);
     
     const formatted = (data || []).map((d: any) => ({
       user_id: d.user_id,
       handicap: d.handicap,
+      points: d.points,
+      wins: d.wins,
+      losses: d.losses,
       profile: d.profile
     }));
     setMembers(formatted);
@@ -66,23 +72,26 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
     const winnerTeam = games1 >= games2 ? 1 : 2;
 
     // Calcola handicap coppie
-    const hc1 = (members.find(m => m.user_id === player1)?.handicap || 10) + 
-                (members.find(m => m.user_id === player2)?.handicap || 10);
-    const hc2 = (members.find(m => m.user_id === player3)?.handicap || 10) + 
-                (members.find(m => m.user_id === player4)?.handicap || 10);
+    const getMember = (id: string) => members.find(m => m.user_id === id);
+    const hc1 = (getMember(player1)?.handicap || 10) + (getMember(player2)?.handicap || 10);
+    const hc2 = (getMember(player3)?.handicap || 10) + (getMember(player4)?.handicap || 10);
 
-    // Calcola punti
+    // Calcola punti basati su handicap
     const diff = Math.abs(hc1 - hc2);
     let pointsWinner = 3;
     let pointsLoser = 1;
 
     if (diff >= 5) {
-      if ((winnerTeam === 1 && hc1 > hc2) || (winnerTeam === 2 && hc2 > hc1)) {
-        pointsWinner = 5;
+      // Grande differenza di handicap
+      const favoritesWon = (winnerTeam === 1 && hc1 < hc2) || (winnerTeam === 2 && hc2 < hc1);
+      if (favoritesWon) {
+        // Favoriti vincono - meno punti
+        pointsWinner = 2;
         pointsLoser = 1;
       } else {
-        pointsWinner = 2;
-        pointsLoser = 0;
+        // Sfavoriti vincono - più punti!
+        pointsWinner = 5;
+        pointsLoser = 1;
       }
     }
 
@@ -105,30 +114,38 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
       return;
     }
 
-    // Aggiorna punti
+    // Aggiorna punti per TUTTI i 4 giocatori (INCREMENTA, non sovrascrive!)
     const winners = winnerTeam === 1 ? [player1, player2] : [player3, player4];
     const losers = winnerTeam === 1 ? [player3, player4] : [player1, player2];
 
+    // Vincitori: +punti, +1 vittoria
     for (const playerId of winners) {
-      await supabase
-        .from('league_members')
-        .update({ 
-          points: (members.find(m => m.user_id === playerId)?.handicap || 0) + pointsWinner,
-          wins: 1 
-        })
-        .eq('league_id', leagueId)
-        .eq('user_id', playerId);
+      const member = getMember(playerId);
+      if (member) {
+        await supabase
+          .from('league_members')
+          .update({ 
+            points: member.points + pointsWinner,
+            wins: member.wins + 1 
+          })
+          .eq('league_id', leagueId)
+          .eq('user_id', playerId);
+      }
     }
 
+    // Perdenti: +punti partecipazione, +1 sconfitta
     for (const playerId of losers) {
-      await supabase
-        .from('league_members')  
-        .update({ 
-          points: (members.find(m => m.user_id === playerId)?.handicap || 0) + pointsLoser,
-          losses: 1 
-        })
-        .eq('league_id', leagueId)
-        .eq('user_id', playerId);
+      const member = getMember(playerId);
+      if (member) {
+        await supabase
+          .from('league_members')
+          .update({ 
+            points: member.points + pointsLoser,
+            losses: member.losses + 1 
+          })
+          .eq('league_id', leagueId)
+          .eq('user_id', playerId);
+      }
     }
 
     router.push(`/leagues/${leagueId}`);
@@ -152,6 +169,12 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
     );
   }
 
+  // Calcola previsione
+  const getMember = (id: string) => members.find(m => m.user_id === id);
+  const team1HC = (getMember(player1)?.handicap || 0) + (getMember(player2)?.handicap || 0);
+  const team2HC = (getMember(player3)?.handicap || 0) + (getMember(player4)?.handicap || 0);
+  const showPrediction = player1 && player2 && player3 && player4;
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -168,8 +191,11 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           ← Annulla
         </Link>
         <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, marginTop: '8px' }}>
-          🎾 Nuova Partita
+          🎾 Registra Partita
         </h1>
+        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginTop: '4px' }}>
+          I punti si aggiornano per tutti!
+        </p>
       </div>
 
       <div style={{ padding: '0 20px' }}>
@@ -240,6 +266,26 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           </div>
         </div>
 
+        {/* Previsione Handicap */}
+        {showPrediction && (
+          <div style={{
+            background: team1HC === team2HC ? '#F1F5F9' : team1HC > team2HC ? '#FEF3C7' : '#DCFCE7',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '16px',
+            textAlign: 'center'
+          }}>
+            <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>Handicap totale</p>
+            <p style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a2e' }}>
+              {team1HC} vs {team2HC}
+            </p>
+            <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+              {team1HC === team2HC ? '⚖️ Equilibrata' : 
+               team1HC > team2HC ? '🔵 Coppia 1 sfavorita' : '🔴 Coppia 2 sfavorita'}
+            </p>
+          </div>
+        )}
+
         {/* Risultato */}
         <div style={{
           background: '#fff',
@@ -252,42 +298,63 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
             📊 Risultato
           </h2>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
-            <input
-              type="text"
-              value={score1}
-              onChange={(e) => setScore1(e.target.value)}
-              placeholder="6-4 6-3"
-              style={{
-                width: '120px',
-                padding: '16px',
-                fontSize: '18px',
-                fontWeight: 700,
-                textAlign: 'center',
-                border: '2px solid #3B82F6',
-                borderRadius: '12px',
-                background: '#EFF6FF'
-              }}
-            />
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#94A3B8' }}>-</span>
-            <input
-              type="text"
-              value={score2}
-              onChange={(e) => setScore2(e.target.value)}
-              placeholder="4-6 3-6"
-              style={{
-                width: '120px',
-                padding: '16px',
-                fontSize: '18px',
-                fontWeight: 700,
-                textAlign: 'center',
-                border: '2px solid #EF4444',
-                borderRadius: '12px',
-                background: '#FEF2F2'
-              }}
-            />
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '12px', color: '#3B82F6', fontWeight: 600, marginBottom: '6px' }}>🔵 Coppia 1</p>
+              <input
+                type="text"
+                value={score1}
+                onChange={(e) => setScore1(e.target.value)}
+                placeholder="6-4 6-3"
+                style={{
+                  width: '110px',
+                  padding: '14px',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  textAlign: 'center',
+                  border: '2px solid #3B82F6',
+                  borderRadius: '12px',
+                  background: '#EFF6FF'
+                }}
+              />
+            </div>
+            <span style={{ fontSize: '20px', fontWeight: 700, color: '#94A3B8', marginTop: '20px' }}>-</span>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '12px', color: '#EF4444', fontWeight: 600, marginBottom: '6px' }}>🔴 Coppia 2</p>
+              <input
+                type="text"
+                value={score2}
+                onChange={(e) => setScore2(e.target.value)}
+                placeholder="4-6 3-6"
+                style={{
+                  width: '110px',
+                  padding: '14px',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  textAlign: 'center',
+                  border: '2px solid #EF4444',
+                  borderRadius: '12px',
+                  background: '#FEF2F2'
+                }}
+              />
+            </div>
           </div>
           <p style={{ fontSize: '12px', color: '#94A3B8', textAlign: 'center', marginTop: '12px' }}>
-            Es: "6-4 6-3" o "6-4 4-6 10-8"
+            Es: "6-4 6-3" oppure "6-4 4-6 10-8"
+          </p>
+        </div>
+
+        {/* Info punti */}
+        <div style={{
+          background: '#F0FDF4',
+          borderRadius: '16px',
+          padding: '16px',
+          marginBottom: '20px'
+        }}>
+          <p style={{ fontSize: '13px', color: '#16A34A', fontWeight: 600, marginBottom: '8px' }}>💡 Come funzionano i punti:</p>
+          <p style={{ fontSize: '12px', color: '#166534' }}>
+            • Vittoria: +3 punti (o +5 se sfavoriti!)<br/>
+            • Sconfitta: +1 punto partecipazione<br/>
+            • Tutti e 4 i giocatori ricevono i punti automaticamente
           </p>
         </div>
 

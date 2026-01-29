@@ -104,7 +104,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const shareWhatsApp = () => {
-    const text = `🎾 Unisciti alla mia lega "${league?.name}"!\n\nCodice: ${league?.code}\n\n👉 https://pepepersonaltrainer.vercel.app/leagues`;
+    const text = `🎾 Unisciti alla mia lega "${league?.name}"!\n\n👉 https://pepepersonaltrainer.vercel.app/join/${league?.code}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -185,7 +185,40 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </Link>
 
-        {/* Azione Secondaria - Pianifica */}
+        {/* Tornei Roulette */}
+        <Link href={`/leagues/${id}/tournaments`} style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '12px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            border: '1px solid #E2E8F0'
+          }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              background: '#F5F3FF',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '20px'
+            }}>
+              🎲
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: '#1a1a2e', fontSize: '15px', fontWeight: 600 }}>Tornei Roulette</p>
+              <p style={{ color: '#64748B', fontSize: '12px' }}>Tutti giocano con tutti!</p>
+            </div>
+            <span style={{ color: '#CBD5E1', fontSize: '20px' }}>›</span>
+          </div>
+        </Link>
+
+        {/* Organizza partita */}
         <Link href={`/leagues/${id}/plan`} style={{ textDecoration: 'none' }}>
           <div style={{
             background: '#fff',
