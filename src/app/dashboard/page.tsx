@@ -190,7 +190,7 @@ export default async function DashboardPage() {
                 <QuickAccessTile href="/training" icon="📝" label="Le mie Schede" />
                 <QuickAccessTile href="/calendar" icon="📅" label="Calendario" />
                 <QuickAccessTile href="/stats" icon="📊" label="Statistiche" />
-                <QuickAccessTile href="/tournaments" icon="🏆" label="Tornei" />
+                <QuickAccessTile href="/leagues" icon="🏆" label="Leghe" />
               </div>
             </SectionCard>
 
