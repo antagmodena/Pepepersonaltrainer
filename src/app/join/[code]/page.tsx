@@ -194,7 +194,7 @@ export default async function JoinLeaguePage({ params }: { params: Promise<{ cod
 
         {/* Footer */}
         <p style={{ marginTop: '24px', fontSize: '12px', color: '#94A3B8' }}>
-          🎾 Pepe Padel Trainer
+          🎾 MyPadelog
         </p>
       </div>
     </div>

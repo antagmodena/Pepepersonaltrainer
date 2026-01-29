@@ -1,6 +1,6 @@
 {
-  "name": "Pepe Padel Trainer",
-  "short_name": "Padel Trainer",
+  "name": "MyPadelog",
+  "short_name": "MyPadelog",
   "description": "App per allenamento padel - traccia progressi, errori e obiettivi",
   "start_url": "/dashboard",
   "display": "standalone",

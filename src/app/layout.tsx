@@ -3,13 +3,13 @@ import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
-  title: "Pepe Padel Trainer",
-  description: "Il tuo diario di allenamento padel",
+  title: "MyPadelog – Allenamenti & Partite",
+  description: "Il tuo diario di allenamento padel - Traccia progressi, organizza partite, gestisci leghe",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Pepe Padel",
+    title: "MyPadelog",
   },
 };
 
@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0066FF",
+  themeColor: "#F59E0B",
 };
 
 export default function RootLayout({

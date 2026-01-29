@@ -50,7 +50,7 @@ function LoginForm() {
           boxShadow: '0 8px 32px rgba(0, 102, 255, 0.2)'
         }}>
           <span style={{ fontSize: '48px', display: 'block', marginBottom: '8px' }}>🎾</span>
-          <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 800 }}>Pepe Padel</h1>
+          <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 800 }}>MyPadelog</h1>
         </div>
 
         {/* Form */}
