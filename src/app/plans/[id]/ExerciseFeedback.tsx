@@ -44,7 +44,6 @@ export default function ExerciseFeedback({ planId, exerciseId, exerciseName }: P
 
     setStatus(newStatus);
 
-    // Upsert feedback
     await supabase.from('exercise_feedback').upsert({
       plan_id: planId,
       exercise_id: exerciseId,
@@ -79,7 +78,6 @@ export default function ExerciseFeedback({ planId, exerciseId, exerciseName }: P
           style={{
             flex: 1,
             padding: '8px 4px',
-            border: 'none',
             borderRadius: '8px',
             fontSize: '11px',
             fontWeight: 600,
