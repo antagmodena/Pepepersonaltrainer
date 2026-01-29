@@ -25,11 +25,20 @@ interface Match {
   played_at: string;
 }
 
+interface LeagueEvent {
+  id: string;
+  event_date: string;
+  event_time: string | null;
+  location: string | null;
+  status: string;
+}
+
 export default function LeagueDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [league, setLeague] = useState<any>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [events, setEvents] = useState<LeagueEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -73,6 +82,16 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
       .limit(10);
     setMatches(matchesData || []);
 
+    const { data: eventsData } = await supabase
+      .from('league_events')
+      .select('*')
+      .eq('league_id', id)
+      .eq('status', 'planned')
+      .gte('event_date', new Date().toISOString().split('T')[0])
+      .order('event_date', { ascending: true })
+      .limit(3);
+    setEvents(eventsData || []);
+
     setLoading(false);
   };
 
@@ -85,7 +104,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const shareWhatsApp = () => {
-    const text = `🎾 Unisciti alla mia lega di Padel "${league?.name}"!\n\nCodice: ${league?.code}\n\nScarica l'app: https://pepepersonaltrainer.vercel.app`;
+    const text = `🎾 Unisciti alla mia lega "${league?.name}"!\n\nCodice: ${league?.code}\n\n👉 https://pepepersonaltrainer.vercel.app/leagues`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -123,58 +142,145 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
         marginBottom: '24px'
       }}>
         <Link href="/leagues" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}>
-          ← Leghe
+          ← Le mie Leghe
         </Link>
         <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginTop: '8px' }}>
-          🎾 {league?.name}
+          {league?.name}
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginTop: '4px' }}>
-          👥 {members.length} giocatori
+          👥 {members.length} giocatori • 🎾 {matches.length} partite
         </p>
       </div>
 
       <div style={{ padding: '0 20px' }}>
-        {/* Codice Invito con Bottoni */}
+        {/* Azione Principale - Registra Partita */}
+        <Link href={`/leagues/${id}/match/new`} style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '12px',
+            boxShadow: '0 8px 32px rgba(34, 197, 94, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              background: 'rgba(255,255,255,0.2)',
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px'
+            }}>
+              🎾
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: '#fff', fontSize: '17px', fontWeight: 700 }}>Registra Partita</p>
+              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px' }}>Inserisci il risultato</p>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '24px' }}>→</span>
+          </div>
+        </Link>
+
+        {/* Azione Secondaria - Pianifica */}
+        <Link href={`/leagues/${id}/plan`} style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            border: '1px solid #E2E8F0'
+          }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              background: '#EFF6FF',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '20px'
+            }}>
+              📅
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: '#1a1a2e', fontSize: '15px', fontWeight: 600 }}>Organizza partita</p>
+              <p style={{ color: '#64748B', fontSize: '12px' }}>Fissa data e luogo</p>
+            </div>
+            <span style={{ color: '#CBD5E1', fontSize: '20px' }}>›</span>
+          </div>
+        </Link>
+
+        {/* Prossimi Eventi */}
+        {events.length > 0 && (
+          <div style={{
+            background: '#EFF6FF',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '16px',
+            border: '1px solid #BFDBFE'
+          }}>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: '#1D4ED8', marginBottom: '10px' }}>📅 Prossime partite</p>
+            {events.map(event => (
+              <div key={event.id} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 0',
+                borderBottom: '1px solid #BFDBFE'
+              }}>
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: '14px', color: '#1a1a2e' }}>
+                    {new Date(event.event_date).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    {event.event_time && ` • ${event.event_time.slice(0,5)}`}
+                  </p>
+                  {event.location && <p style={{ fontSize: '12px', color: '#64748B' }}>📍 {event.location}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Invita Amici */}
         <div style={{
           background: '#fff',
           borderRadius: '20px',
           padding: '20px',
           marginBottom: '16px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-          textAlign: 'center'
+          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
         }}>
-          <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '8px' }}>Invita amici con il codice:</p>
-          <p style={{
-            fontSize: '32px',
-            fontWeight: 800,
-            color: '#F59E0B',
-            fontFamily: 'monospace',
-            letterSpacing: '6px',
-            background: '#FEF3C7',
-            padding: '12px 20px',
-            borderRadius: '12px',
-            display: 'inline-block',
-            marginBottom: '16px'
-          }}>
-            {league?.code}
-          </p>
-          
-          {/* Bottoni Condividi */}
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <p style={{ fontSize: '15px', fontWeight: 700, color: '#1a1a2e' }}>Invita amici</p>
+            <div style={{
+              background: '#FEF3C7',
+              padding: '8px 16px',
+              borderRadius: '10px'
+            }}>
+              <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '18px', color: '#D97706', letterSpacing: '3px' }}>
+                {league?.code}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={copyCode}
               style={{
-                padding: '12px 20px',
+                flex: 1,
+                padding: '12px',
                 background: copied ? '#DCFCE7' : '#F1F5F9',
                 color: copied ? '#16A34A' : '#64748B',
                 border: 'none',
                 borderRadius: '12px',
                 fontWeight: 600,
                 fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
+                cursor: 'pointer'
               }}
             >
               {copied ? '✓ Copiato!' : '📋 Copia'}
@@ -182,50 +288,20 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
             <button
               onClick={shareWhatsApp}
               style={{
-                padding: '12px 20px',
+                flex: 1,
+                padding: '12px',
                 background: '#25D366',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '12px',
                 fontWeight: 600,
                 fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
+                cursor: 'pointer'
               }}
             >
               📱 WhatsApp
             </button>
           </div>
-        </div>
-
-        {/* Azioni Rapide */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-          <Link href={`/leagues/${id}/match/new`} style={{ textDecoration: 'none' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
-              borderRadius: '16px',
-              padding: '16px',
-              textAlign: 'center',
-              boxShadow: '0 4px 16px rgba(34, 197, 94, 0.3)'
-            }}>
-              <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🎾</span>
-              <span style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>Nuova Partita</span>
-            </div>
-          </Link>
-          <Link href={`/leagues/${id}`} style={{ textDecoration: 'none' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
-              borderRadius: '16px',
-              padding: '16px',
-              textAlign: 'center',
-              boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)'
-            }}>
-              <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📅</span>
-              <span style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>Pianifica</span>
-            </div>
-          </Link>
         </div>
 
         {/* Classifica */}
@@ -248,6 +324,9 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
               {members.map((member, index) => {
                 const pos = getPositionStyle(index);
                 const isMe = member.user_id === currentUserId;
+                const winRate = member.wins + member.losses > 0 
+                  ? Math.round((member.wins / (member.wins + member.losses)) * 100) 
+                  : 0;
                 return (
                   <div
                     key={member.user_id}
@@ -267,15 +346,15 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                     <div style={{ flex: 1 }}>
                       <p style={{ fontWeight: 600, fontSize: '15px', color: '#1a1a2e' }}>
                         {member.profile?.full_name || 'Giocatore'}
-                        {isMe && <span style={{ color: '#F59E0B', marginLeft: '8px', fontSize: '12px' }}>Tu</span>}
+                        {isMe && <span style={{ color: '#F59E0B', marginLeft: '8px', fontSize: '11px', fontWeight: 500 }}>• Tu</span>}
                       </p>
                       <p style={{ fontSize: '12px', color: '#64748B' }}>
-                        {member.wins}V - {member.losses}S • HC {member.handicap}
+                        {member.wins}V {member.losses}S • {winRate}%
                       </p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '20px', fontWeight: 800, color: pos.color }}>{member.points}</p>
-                      <p style={{ fontSize: '10px', color: '#94A3B8' }}>PTS</p>
+                      <p style={{ fontSize: '22px', fontWeight: 800, color: pos.color }}>{member.points}</p>
+                      <p style={{ fontSize: '9px', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>punti</p>
                     </div>
                   </div>
                 );
@@ -296,10 +375,10 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
           </h2>
           {matches.length === 0 ? (
             <p style={{ color: '#94A3B8', textAlign: 'center', padding: '20px' }}>
-              Nessuna partita ancora. Giocate e registrate! 🎾
+              Nessuna partita ancora 🎾
             </p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {matches.map(match => (
                 <div
                   key={match.id}
@@ -320,11 +399,16 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
                         {getPlayerName(match.player1_id)} + {getPlayerName(match.player2_id)}
                       </p>
                     </div>
-                    <div style={{ padding: '0 12px', textAlign: 'center' }}>
-                      <p style={{ fontWeight: 700, fontSize: '16px', color: '#1a1a2e' }}>
+                    <div style={{ 
+                      padding: '6px 12px', 
+                      background: '#fff', 
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0'
+                    }}>
+                      <p style={{ fontWeight: 700, fontSize: '13px', color: '#1a1a2e', textAlign: 'center' }}>
                         {match.score_team1}
                       </p>
-                      <p style={{ fontWeight: 700, fontSize: '16px', color: '#1a1a2e' }}>
+                      <p style={{ fontWeight: 700, fontSize: '13px', color: '#1a1a2e', textAlign: 'center' }}>
                         {match.score_team2}
                       </p>
                     </div>
