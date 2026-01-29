@@ -214,7 +214,7 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
               <span style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>Nuova Partita</span>
             </div>
           </Link>
-          <Link href={`/calendar/new?league=${id}`} style={{ textDecoration: 'none' }}>
+          <Link href={`/leagues/${id}`} style={{ textDecoration: 'none' }}>
             <div style={{
               background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
               borderRadius: '16px',

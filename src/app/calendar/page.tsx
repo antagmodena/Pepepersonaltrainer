@@ -1,21 +1,55 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import CalendarView from './CalendarView';
 
 export default async function CalendarPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
-  if (!user) {
-    redirect('/login');
-  }
+  if (!user) redirect('/login');
 
-  const { data: trainingCards } = await supabase
+  // Training cards
+  const { data: trainings } = await supabase
     .from('training_cards')
-    .select('id, training_date, session_type, coach_feedback')
+    .select('id, training_date, session_type')
     .eq('user_id', user.id)
     .order('training_date', { ascending: false });
+
+  // Eventi delle leghe a cui partecipo
+  const { data: myLeagues } = await supabase
+    .from('league_members')
+    .select('league_id')
+    .eq('user_id', user.id);
+
+  const leagueIds = myLeagues?.map(l => l.league_id) || [];
+
+  let leagueEvents: any[] = [];
+  if (leagueIds.length > 0) {
+    const { data: events } = await supabase
+      .from('league_events')
+      .select('*, league:leagues(name)')
+      .in('league_id', leagueIds)
+      .gte('event_date', new Date().toISOString().split('T')[0])
+      .order('event_date', { ascending: true });
+    leagueEvents = events || [];
+  }
+
+  // Raggruppa per data
+  const eventsByDate: Record<string, any[]> = {};
+  
+  trainings?.forEach(t => {
+    const date = t.training_date;
+    if (!eventsByDate[date]) eventsByDate[date] = [];
+    eventsByDate[date].push({ type: 'training', ...t });
+  });
+
+  leagueEvents.forEach(e => {
+    const date = e.event_date;
+    if (!eventsByDate[date]) eventsByDate[date] = [];
+    eventsByDate[date].push({ type: 'league_event', ...e });
+  });
+
+  const sortedDates = Object.keys(eventsByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   return (
     <div style={{
@@ -25,7 +59,7 @@ export default async function CalendarPage() {
     }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)',
+        background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
         padding: '48px 24px 32px',
         borderRadius: '0 0 32px 32px',
         marginBottom: '24px'
@@ -39,44 +73,113 @@ export default async function CalendarPage() {
       </div>
 
       <div style={{ padding: '0 20px' }}>
-        {/* Quick Action */}
-        <Link href="/training/new" style={{ textDecoration: 'none' }}>
+        {/* Prossimi Eventi Lega */}
+        {leagueEvents.length > 0 && (
           <div style={{
-            background: 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)',
-            borderRadius: '16px',
-            padding: '16px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            marginBottom: '20px',
-            boxShadow: '0 8px 32px rgba(0, 102, 255, 0.3)'
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
           }}>
-            <span style={{ fontSize: '20px' }}>✍️</span>
-            <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>Nuova Scheda</span>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
+              🎾 Prossime Partite
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {leagueEvents.slice(0, 5).map(event => (
+                <Link key={event.id} href={`/leagues/${event.league_id}`} style={{ textDecoration: 'none' }}>
+                  <div style={{
+                    padding: '14px',
+                    background: '#F5F3FF',
+                    borderRadius: '12px',
+                    border: '1px solid #DDD6FE'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <p style={{ fontWeight: 600, fontSize: '14px', color: '#1a1a2e' }}>
+                          {event.league?.name || 'Partita'}
+                        </p>
+                        <p style={{ fontSize: '12px', color: '#64748B' }}>
+                          {event.location || 'Luogo da definire'}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontWeight: 700, fontSize: '14px', color: '#8B5CF6' }}>
+                          {new Date(event.event_date).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </p>
+                        {event.event_time && (
+                          <p style={{ fontSize: '12px', color: '#64748B' }}>{event.event_time.slice(0, 5)}</p>
+                        )}
+                      </div>
+                    </div>
+                    {event.status === 'planned' && (
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '6px 10px',
+                        background: '#FEF3C7',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        color: '#92400E',
+                        textAlign: 'center'
+                      }}>
+                        ⏳ In attesa di risultato
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
-        </Link>
+        )}
 
-        {/* Calendar */}
+        {/* Storico */}
         <div style={{
           background: '#fff',
-          borderRadius: '24px',
+          borderRadius: '20px',
           padding: '20px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-          border: '1px solid rgba(0,0,0,0.04)',
-          marginBottom: '16px'
+          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
         }}>
-          <CalendarView trainingCards={trainingCards || []} />
+          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
+            📝 Storico Attività
+          </h2>
+          {sortedDates.length === 0 ? (
+            <p style={{ color: '#94A3B8', textAlign: 'center', padding: '20px' }}>
+              Nessuna attività registrata
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {sortedDates.slice(0, 20).map(date => (
+                <div key={date}>
+                  <p style={{ fontSize: '12px', fontWeight: 600, color: '#94A3B8', marginBottom: '8px' }}>
+                    {new Date(date).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </p>
+                  {eventsByDate[date].map((event, i) => (
+                    <div key={i} style={{
+                      padding: '12px',
+                      background: event.type === 'training' ? '#F0FDF4' : '#F5F3FF',
+                      borderRadius: '10px',
+                      marginBottom: '6px'
+                    }}>
+                      {event.type === 'training' ? (
+                        <Link href={`/training/${event.id}`} style={{ textDecoration: 'none' }}>
+                          <p style={{ fontWeight: 600, fontSize: '14px', color: '#16A34A' }}>
+                            {event.session_type === 'training' ? '🏋️ Allenamento' : '🎮 Partita'}
+                          </p>
+                        </Link>
+                      ) : (
+                        <Link href={`/leagues/${event.league_id}`} style={{ textDecoration: 'none' }}>
+                          <p style={{ fontWeight: 600, fontSize: '14px', color: '#8B5CF6' }}>
+                            🎾 {event.league?.name}
+                          </p>
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-
-        <p style={{
-          textAlign: 'center',
-          fontSize: '13px',
-          color: '#94A3B8',
-          marginTop: '12px'
-        }}>
-          👆 Clicca su un giorno per vedere o creare una scheda
-        </p>
       </div>
     </div>
   );
