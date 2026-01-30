@@ -297,10 +297,10 @@ export default function DashboardClient({
 
         {/* QUICK ACTIONS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
-          <ActionButton href="/quick-match" variant="secondary" size="medium" fullWidth>
+          <ActionButton href="/organize" variant="secondary" size="medium" fullWidth>
             <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>⚡</span>
-              <span style={{ fontSize: '12px', color: colors.gray }}>Veloce</span>
+              <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>🎾</span>
+              <span style={{ fontSize: '12px', color: colors.gray }}>Organizza</span>
             </div>
           </ActionButton>
           
