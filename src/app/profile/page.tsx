@@ -22,11 +22,11 @@ export default async function ProfilePage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
+      background: '#FAFAF7',
       paddingBottom: '100px'
     }}>
       <div style={{
-        background: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)',
+        background: 'linear-gradient(135deg, #0E5E4A 0%, #0A4A3A 100%)',
         padding: '48px 24px 32px',
         borderRadius: '0 0 32px 32px',
         marginBottom: '24px',
@@ -41,40 +41,72 @@ export default async function ProfilePage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '36px'
+          fontSize: '36px',
+          fontWeight: 800,
+          color: '#fff'
         }}>
-          {isCoach ? '👨‍🏫' : '🎾'}
+          {profile?.full_name?.charAt(0).toUpperCase() || '?'}
         </div>
         <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 800 }}>
           {profile?.full_name || 'Utente'}
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginTop: '4px' }}>
-          {isCoach ? 'Maestro' : 'Giocatore'}
+          {isCoach ? '👨‍🏫 Maestro' : '🎾 Giocatore'}
         </p>
       </div>
 
       <div style={{ padding: '0 20px' }}>
+        {/* PLAYER CARD - CTA principale */}
+        <Link href="/profile/player-card" style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              background: 'linear-gradient(135deg, #0E5E4A 0%, #16A34A 100%)',
+              borderRadius: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px'
+            }}>
+              🏆
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: '#fff', fontSize: '17px', fontWeight: 700 }}>La tua Player Card</p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Stats, badge e titolo • Condividila!</p>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '20px' }}>→</span>
+          </div>
+        </Link>
+
+        {/* Info */}
         <div style={{
           background: '#fff',
-          borderRadius: '24px',
-          padding: '24px',
-          marginBottom: '16px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-          border: '1px solid rgba(0,0,0,0.04)'
+          borderRadius: '20px',
+          padding: '20px',
+          marginBottom: '16px'
         }}>
-          <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a2e', marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#111', marginBottom: '16px' }}>
             👤 Informazioni
           </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
-              <span style={{ color: '#64748B', fontSize: '14px' }}>Email</span>
-              <span style={{ color: '#1a1a2e', fontSize: '14px', fontWeight: 500 }}>{user.email}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F5F5F3' }}>
+              <span style={{ color: '#666', fontSize: '14px' }}>Email</span>
+              <span style={{ color: '#111', fontSize: '14px', fontWeight: 500 }}>{user.email}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
-              <span style={{ color: '#64748B', fontSize: '14px' }}>Ruolo</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F5F5F3' }}>
+              <span style={{ color: '#666', fontSize: '14px' }}>Ruolo</span>
               <span style={{
-                background: isCoach ? '#DBEAFE' : '#DCFCE7',
-                color: isCoach ? '#2563EB' : '#16A34A',
+                background: isCoach ? '#E0F2FE' : '#E8F5E9',
+                color: isCoach ? '#0369A1' : '#0E5E4A',
                 padding: '4px 12px',
                 borderRadius: '20px',
                 fontSize: '13px',
@@ -85,13 +117,15 @@ export default async function ProfilePage() {
             </div>
             {isCoach && profile?.coach_code && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0' }}>
-                <span style={{ color: '#64748B', fontSize: '14px' }}>Codice Coach</span>
+                <span style={{ color: '#666', fontSize: '14px' }}>Codice Coach</span>
                 <span style={{
-                  background: '#F1F5F9',
+                  background: '#F5F5F3',
                   padding: '8px 16px',
                   borderRadius: '8px',
                   fontFamily: 'monospace',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  color: '#0E5E4A',
+                  letterSpacing: '2px'
                 }}>
                   {profile.coach_code}
                 </span>
@@ -100,36 +134,43 @@ export default async function ProfilePage() {
           </div>
         </div>
 
+        {/* Menu */}
         <div style={{
           background: '#fff',
-          borderRadius: '24px',
-          padding: '24px',
-          marginBottom: '16px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+          borderRadius: '20px',
+          padding: '20px',
+          marginBottom: '16px'
         }}>
-          <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#111', marginBottom: '16px' }}>
             ⚙️ Impostazioni
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Link href="/companions" style={{ textDecoration: 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F5F5F3', borderRadius: '14px' }}>
+                <span style={{ fontSize: '20px' }}>👥</span>
+                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#111' }}>I Miei Compagni</span>
+                <span style={{ color: '#CCC' }}>›</span>
+              </div>
+            </Link>
             <Link href="/goals" style={{ textDecoration: 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F8FAFC', borderRadius: '14px' }}>
-                <span style={{ fontSize: '22px' }}>🎯</span>
-                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#1a1a2e' }}>Obiettivi Stagione</span>
-                <span style={{ color: '#CBD5E1' }}>›</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F5F5F3', borderRadius: '14px' }}>
+                <span style={{ fontSize: '20px' }}>🎯</span>
+                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#111' }}>Obiettivi Stagione</span>
+                <span style={{ color: '#CCC' }}>›</span>
               </div>
             </Link>
             <Link href="/errors" style={{ textDecoration: 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F8FAFC', borderRadius: '14px' }}>
-                <span style={{ fontSize: '22px' }}>⚠️</span>
-                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#1a1a2e' }}>Errori Ricorrenti</span>
-                <span style={{ color: '#CBD5E1' }}>›</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F5F5F3', borderRadius: '14px' }}>
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#111' }}>Errori Ricorrenti</span>
+                <span style={{ color: '#CCC' }}>›</span>
               </div>
             </Link>
             <Link href="/connections" style={{ textDecoration: 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F8FAFC', borderRadius: '14px' }}>
-                <span style={{ fontSize: '22px' }}>🔗</span>
-                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#1a1a2e' }}>Connessioni</span>
-                <span style={{ color: '#CBD5E1' }}>›</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#F5F5F3', borderRadius: '14px' }}>
+                <span style={{ fontSize: '20px' }}>🔗</span>
+                <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#111' }}>Connessioni Maestro</span>
+                <span style={{ color: '#CCC' }}>›</span>
               </div>
             </Link>
           </div>

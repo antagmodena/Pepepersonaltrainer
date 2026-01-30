@@ -12,47 +12,126 @@ interface Member {
   wins: number;
   losses: number;
   profile: { full_name: string } | null;
+  matchCount?: number;
 }
 
 export default function NewMatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = use(params);
   const [members, setMembers] = useState<Member[]>([]);
-  const [player1, setPlayer1] = useState('');
-  const [player2, setPlayer2] = useState('');
-  const [player3, setPlayer3] = useState('');
-  const [player4, setPlayer4] = useState('');
-  const [score1, setScore1] = useState('');
-  const [score2, setScore2] = useState('');
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [team1, setTeam1] = useState<string[]>([]);
+  const [team2, setTeam2] = useState<string[]>([]);
+  const [scores, setScores] = useState([
+    { team1: 0, team2: 0 },
+    { team1: 0, team2: 0 },
+    { team1: 0, team2: 0 }
+  ]);
+  const [sets, setSets] = useState(2);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState(1); // 1: team1, 2: team2, 3: score
 
   const router = useRouter();
   const supabase = createClient();
 
-  useEffect(() => { loadMembers(); }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const loadMembers = async () => {
-    const { data } = await supabase
+  const loadData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setCurrentUserId(user.id);
+    setTeam1([user.id]); // Tu già selezionato!
+
+    // Carica membri
+    const { data: membersData } = await supabase
       .from('league_members')
       .select('user_id, handicap, points, wins, losses, profile:profiles(full_name)')
       .eq('league_id', leagueId);
-    
-    const formatted = (data || []).map((d: any) => ({
+
+    // Carica partite per ordinare per frequenza
+    const { data: matchesData } = await supabase
+      .from('matches')
+      .select('player1_id, player2_id, player3_id, player4_id')
+      .eq('league_id', leagueId);
+
+    // Conta quante volte hai giocato con ciascuno
+    const playCount: Record<string, number> = {};
+    (matchesData || []).forEach(m => {
+      const players = [m.player1_id, m.player2_id, m.player3_id, m.player4_id];
+      if (players.includes(user.id)) {
+        players.forEach(p => {
+          if (p !== user.id) {
+            playCount[p] = (playCount[p] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Formatta e ordina per frequenza
+    const formatted = (membersData || []).map((d: any) => ({
       user_id: d.user_id,
       handicap: d.handicap,
       points: d.points,
       wins: d.wins,
       losses: d.losses,
-      profile: d.profile
-    }));
+      profile: d.profile,
+      matchCount: playCount[d.user_id] || 0
+    })).sort((a, b) => b.matchCount - a.matchCount);
+
     setMembers(formatted);
     setLoading(false);
   };
 
+  const togglePlayer = (playerId: string, team: 'team1' | 'team2') => {
+    if (team === 'team1') {
+      if (team1.includes(playerId)) {
+        if (playerId !== currentUserId) { // Non puoi togliere te stesso
+          setTeam1(team1.filter(id => id !== playerId));
+        }
+      } else if (team1.length < 2 && !team2.includes(playerId)) {
+        setTeam1([...team1, playerId]);
+      }
+    } else {
+      if (team2.includes(playerId)) {
+        setTeam2(team2.filter(id => id !== playerId));
+      } else if (team2.length < 2 && !team1.includes(playerId)) {
+        setTeam2([...team2, playerId]);
+      }
+    }
+  };
+
+  const updateScore = (setIndex: number, team: 'team1' | 'team2', delta: number) => {
+    setScores(prev => {
+      const newScores = [...prev];
+      const newValue = newScores[setIndex][team] + delta;
+      if (newValue >= 0 && newValue <= 7) {
+        newScores[setIndex] = { ...newScores[setIndex], [team]: newValue };
+      }
+      return newScores;
+    });
+  };
+
+  const getScoreString = (team: 'team1' | 'team2') => {
+    return scores.slice(0, sets).map(s => s[team]).join('-');
+  };
+
+  const getWinner = () => {
+    let team1Sets = 0;
+    let team2Sets = 0;
+    scores.slice(0, sets).forEach(s => {
+      if (s.team1 > s.team2) team1Sets++;
+      else if (s.team2 > s.team1) team2Sets++;
+    });
+    if (team1Sets > team2Sets) return 1;
+    if (team2Sets > team1Sets) return 2;
+    return 0;
+  };
+
   const handleSave = async () => {
-    if (!player1 || !player2 || !player3 || !player4 || !score1 || !score2) return;
-    if (new Set([player1, player2, player3, player4]).size !== 4) {
-      alert('Seleziona 4 giocatori diversi!');
+    if (team1.length !== 2 || team2.length !== 2) return;
+    const winner = getWinner();
+    if (winner === 0) {
+      alert('Risultato non valido - deve esserci un vincitore');
       return;
     }
     setSaving(true);
@@ -60,51 +139,41 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Determina il vincitore
-    const parseScore = (s: string) => {
-      return s.split(' ').reduce((acc, set) => {
-        const parts = set.split('-');
-        return acc + parseInt(parts[0] || '0');
-      }, 0);
-    };
-    const games1 = parseScore(score1);
-    const games2 = parseScore(score2);
-    const winnerTeam = games1 >= games2 ? 1 : 2;
-
-    // Calcola handicap coppie
     const getMember = (id: string) => members.find(m => m.user_id === id);
-    const hc1 = (getMember(player1)?.handicap || 10) + (getMember(player2)?.handicap || 10);
-    const hc2 = (getMember(player3)?.handicap || 10) + (getMember(player4)?.handicap || 10);
 
-    // Calcola punti basati su handicap
+    // Calcola handicap
+    const hc1 = (getMember(team1[0])?.handicap || 10) + (getMember(team1[1])?.handicap || 10);
+    const hc2 = (getMember(team2[0])?.handicap || 10) + (getMember(team2[1])?.handicap || 10);
     const diff = Math.abs(hc1 - hc2);
+
     let pointsWinner = 3;
     let pointsLoser = 1;
 
     if (diff >= 5) {
-      // Grande differenza di handicap
-      const favoritesWon = (winnerTeam === 1 && hc1 < hc2) || (winnerTeam === 2 && hc2 < hc1);
+      const favoritesWon = (winner === 1 && hc1 < hc2) || (winner === 2 && hc2 < hc1);
       if (favoritesWon) {
-        // Favoriti vincono - meno punti
         pointsWinner = 2;
         pointsLoser = 1;
       } else {
-        // Sfavoriti vincono - più punti!
-        pointsWinner = 5;
+        pointsWinner = 5; // Giant killer bonus!
         pointsLoser = 1;
       }
     }
 
+    // Crea stringhe punteggio
+    const score1 = scores.slice(0, sets).map(s => `${s.team1}-${s.team2}`).join(' ');
+    const score2 = scores.slice(0, sets).map(s => `${s.team2}-${s.team1}`).join(' ');
+
     // Registra partita
     const { error } = await supabase.from('matches').insert({
       league_id: leagueId,
-      player1_id: player1,
-      player2_id: player2,
-      player3_id: player3,
-      player4_id: player4,
+      player1_id: team1[0],
+      player2_id: team1[1],
+      player3_id: team2[0],
+      player4_id: team2[1],
       score_team1: score1,
       score_team2: score2,
-      winner_team: winnerTeam,
+      winner_team: winner,
       registered_by: user.id
     });
 
@@ -114,34 +183,32 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
       return;
     }
 
-    // Aggiorna punti per TUTTI i 4 giocatori (INCREMENTA, non sovrascrive!)
-    const winners = winnerTeam === 1 ? [player1, player2] : [player3, player4];
-    const losers = winnerTeam === 1 ? [player3, player4] : [player1, player2];
+    // Aggiorna punti
+    const winners = winner === 1 ? team1 : team2;
+    const losers = winner === 1 ? team2 : team1;
 
-    // Vincitori: +punti, +1 vittoria
     for (const playerId of winners) {
       const member = getMember(playerId);
       if (member) {
         await supabase
           .from('league_members')
-          .update({ 
+          .update({
             points: member.points + pointsWinner,
-            wins: member.wins + 1 
+            wins: member.wins + 1
           })
           .eq('league_id', leagueId)
           .eq('user_id', playerId);
       }
     }
 
-    // Perdenti: +punti partecipazione, +1 sconfitta
     for (const playerId of losers) {
       const member = getMember(playerId);
       if (member) {
         await supabase
           .from('league_members')
-          .update({ 
+          .update({
             points: member.points + pointsLoser,
-            losses: member.losses + 1 
+            losses: member.losses + 1
           })
           .eq('league_id', leagueId)
           .eq('user_id', playerId);
@@ -151,14 +218,9 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
     router.push(`/leagues/${leagueId}`);
   };
 
-  const selectStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '14px 16px',
-    fontSize: '15px',
-    border: '2px solid #E2E8F0',
-    borderRadius: '12px',
-    background: '#fff',
-    cursor: 'pointer'
+  const getName = (id: string) => {
+    const m = members.find(m => m.user_id === id);
+    return m?.profile?.full_name?.split(' ')[0] || 'Tu';
   };
 
   if (loading) {
@@ -169,20 +231,18 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
     );
   }
 
-  // Calcola previsione
-  const getMember = (id: string) => members.find(m => m.user_id === id);
-  const team1HC = (getMember(player1)?.handicap || 0) + (getMember(player2)?.handicap || 0);
-  const team2HC = (getMember(player3)?.handicap || 0) + (getMember(player4)?.handicap || 0);
-  const showPrediction = player1 && player2 && player3 && player4;
+  const canProceed = step === 1 ? team1.length === 2 : step === 2 ? team2.length === 2 : getWinner() !== 0;
+  const otherMembers = members.filter(m => m.user_id !== currentUserId);
 
   return (
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
-      paddingBottom: '100px'
+      paddingBottom: '120px'
     }}>
+      {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
+        background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
         padding: '48px 24px 32px',
         borderRadius: '0 0 32px 32px',
         marginBottom: '24px'
@@ -191,192 +251,422 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           ← Annulla
         </Link>
         <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, marginTop: '8px' }}>
-          🎾 Registra Partita
+          🎾 Nuova Partita
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginTop: '4px' }}>
-          I punti si aggiornano per tutti!
+        
+        {/* Progress */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+          {[1, 2, 3].map(s => (
+            <div key={s} style={{
+              flex: 1,
+              height: '4px',
+              borderRadius: '2px',
+              background: step >= s ? '#fff' : 'rgba(255,255,255,0.3)'
+            }} />
+          ))}
+        </div>
+        <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px', marginTop: '8px' }}>
+          {step === 1 ? '👥 Scegli il tuo compagno' : step === 2 ? '⚔️ Scegli gli avversari' : '📊 Inserisci il risultato'}
         </p>
       </div>
 
       <div style={{ padding: '0 20px' }}>
-        {/* Team 1 */}
-        <div style={{
-          background: '#fff',
-          borderRadius: '20px',
-          padding: '20px',
-          marginBottom: '16px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
-        }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
-            🔵 Coppia 1
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <select value={player1} onChange={(e) => setPlayer1(e.target.value)} style={selectStyle}>
-              <option value="">Giocatore 1...</option>
-              {members.map(m => (
-                <option key={m.user_id} value={m.user_id} disabled={[player2, player3, player4].includes(m.user_id)}>
-                  {m.profile?.full_name || 'Giocatore'} (HC {m.handicap})
-                </option>
-              ))}
-            </select>
-            <select value={player2} onChange={(e) => setPlayer2(e.target.value)} style={selectStyle}>
-              <option value="">Giocatore 2...</option>
-              {members.map(m => (
-                <option key={m.user_id} value={m.user_id} disabled={[player1, player3, player4].includes(m.user_id)}>
-                  {m.profile?.full_name || 'Giocatore'} (HC {m.handicap})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* VS */}
-        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: '#94A3B8' }}>VS</span>
-        </div>
-
-        {/* Team 2 */}
-        <div style={{
-          background: '#fff',
-          borderRadius: '20px',
-          padding: '20px',
-          marginBottom: '16px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
-        }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
-            🔴 Coppia 2
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <select value={player3} onChange={(e) => setPlayer3(e.target.value)} style={selectStyle}>
-              <option value="">Giocatore 3...</option>
-              {members.map(m => (
-                <option key={m.user_id} value={m.user_id} disabled={[player1, player2, player4].includes(m.user_id)}>
-                  {m.profile?.full_name || 'Giocatore'} (HC {m.handicap})
-                </option>
-              ))}
-            </select>
-            <select value={player4} onChange={(e) => setPlayer4(e.target.value)} style={selectStyle}>
-              <option value="">Giocatore 4...</option>
-              {members.map(m => (
-                <option key={m.user_id} value={m.user_id} disabled={[player1, player2, player3].includes(m.user_id)}>
-                  {m.profile?.full_name || 'Giocatore'} (HC {m.handicap})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Previsione Handicap */}
-        {showPrediction && (
+        {/* STEP 1: Team 1 */}
+        {step === 1 && (
           <div style={{
-            background: team1HC === team2HC ? '#F1F5F9' : team1HC > team2HC ? '#FEF3C7' : '#DCFCE7',
-            borderRadius: '16px',
-            padding: '16px',
-            marginBottom: '16px',
-            textAlign: 'center'
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
           }}>
-            <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>Handicap totale</p>
-            <p style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a2e' }}>
-              {team1HC} vs {team2HC}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '18px'
+              }}>
+                {getName(currentUserId).charAt(0)}
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, color: '#1a1a2e' }}>Tu</p>
+                <p style={{ fontSize: '12px', color: '#22C55E' }}>✓ Già in squadra</p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '12px' }}>
+              Chi gioca con te?
             </p>
-            <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-              {team1HC === team2HC ? '⚖️ Equilibrata' : 
-               team1HC > team2HC ? '🔵 Coppia 1 sfavorita' : '🔴 Coppia 2 sfavorita'}
-            </p>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              {otherMembers.map(m => {
+                const isSelected = team1.includes(m.user_id);
+                const isInTeam2 = team2.includes(m.user_id);
+                return (
+                  <button
+                    key={m.user_id}
+                    onClick={() => togglePlayer(m.user_id, 'team1')}
+                    disabled={isInTeam2}
+                    style={{
+                      padding: '12px 20px',
+                      borderRadius: '50px',
+                      border: 'none',
+                      background: isSelected ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)' : isInTeam2 ? '#E2E8F0' : '#F1F5F9',
+                      color: isSelected ? '#fff' : isInTeam2 ? '#94A3B8' : '#1a1a2e',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      cursor: isInTeam2 ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: isSelected ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+                    }}
+                  >
+                    {m.profile?.full_name?.split(' ')[0] || 'Giocatore'}
+                    {m.matchCount && m.matchCount > 0 && (
+                      <span style={{ marginLeft: '6px', opacity: 0.7, fontSize: '12px' }}>
+                        ({m.matchCount})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {team1.length === 2 && (
+              <div style={{
+                marginTop: '20px',
+                padding: '16px',
+                background: '#EFF6FF',
+                borderRadius: '12px',
+                textAlign: 'center'
+              }}>
+                <p style={{ fontSize: '15px', color: '#1D4ED8', fontWeight: 600 }}>
+                  🤝 Tu + {getName(team1[1])}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Risultato */}
-        <div style={{
-          background: '#fff',
-          borderRadius: '20px',
-          padding: '20px',
-          marginBottom: '20px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
-        }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
-            📊 Risultato
-          </h2>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '12px', color: '#3B82F6', fontWeight: 600, marginBottom: '6px' }}>🔵 Coppia 1</p>
-              <input
-                type="text"
-                value={score1}
-                onChange={(e) => setScore1(e.target.value)}
-                placeholder="6-4 6-3"
-                style={{
-                  width: '110px',
-                  padding: '14px',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  border: '2px solid #3B82F6',
-                  borderRadius: '12px',
-                  background: '#EFF6FF'
-                }}
-              />
+        {/* STEP 2: Team 2 */}
+        {step === 2 && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+          }}>
+            <div style={{
+              marginBottom: '20px',
+              padding: '16px',
+              background: '#EFF6FF',
+              borderRadius: '12px',
+              textAlign: 'center'
+            }}>
+              <p style={{ fontSize: '13px', color: '#64748B' }}>La tua coppia</p>
+              <p style={{ fontSize: '17px', color: '#1D4ED8', fontWeight: 700 }}>
+                🔵 {getName(team1[0])} + {getName(team1[1])}
+              </p>
             </div>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#94A3B8', marginTop: '20px' }}>-</span>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '12px', color: '#EF4444', fontWeight: 600, marginBottom: '6px' }}>🔴 Coppia 2</p>
-              <input
-                type="text"
-                value={score2}
-                onChange={(e) => setScore2(e.target.value)}
-                placeholder="4-6 3-6"
-                style={{
-                  width: '110px',
-                  padding: '14px',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  border: '2px solid #EF4444',
-                  borderRadius: '12px',
-                  background: '#FEF2F2'
-                }}
-              />
+
+            <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '12px' }}>
+              Chi avete sfidato?
+            </p>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              {otherMembers.map(m => {
+                const isSelected = team2.includes(m.user_id);
+                const isInTeam1 = team1.includes(m.user_id);
+                return (
+                  <button
+                    key={m.user_id}
+                    onClick={() => togglePlayer(m.user_id, 'team2')}
+                    disabled={isInTeam1}
+                    style={{
+                      padding: '12px 20px',
+                      borderRadius: '50px',
+                      border: 'none',
+                      background: isSelected ? 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' : isInTeam1 ? '#E2E8F0' : '#F1F5F9',
+                      color: isSelected ? '#fff' : isInTeam1 ? '#94A3B8' : '#1a1a2e',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      cursor: isInTeam1 ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: isSelected ? '0 4px 12px rgba(239, 68, 68, 0.3)' : 'none'
+                    }}
+                  >
+                    {m.profile?.full_name?.split(' ')[0] || 'Giocatore'}
+                  </button>
+                );
+              })}
             </div>
+
+            {team2.length === 2 && (
+              <div style={{
+                marginTop: '20px',
+                padding: '16px',
+                background: '#FEF2F2',
+                borderRadius: '12px',
+                textAlign: 'center'
+              }}>
+                <p style={{ fontSize: '15px', color: '#DC2626', fontWeight: 600 }}>
+                  ⚔️ {getName(team2[0])} + {getName(team2[1])}
+                </p>
+              </div>
+            )}
           </div>
-          <p style={{ fontSize: '12px', color: '#94A3B8', textAlign: 'center', marginTop: '12px' }}>
-            Es: "6-4 6-3" oppure "6-4 4-6 10-8"
-          </p>
-        </div>
+        )}
 
-        {/* Info punti */}
-        <div style={{
-          background: '#F0FDF4',
-          borderRadius: '16px',
-          padding: '16px',
-          marginBottom: '20px'
-        }}>
-          <p style={{ fontSize: '13px', color: '#16A34A', fontWeight: 600, marginBottom: '8px' }}>💡 Come funzionano i punti:</p>
-          <p style={{ fontSize: '12px', color: '#166534' }}>
-            • Vittoria: +3 punti (o +5 se sfavoriti!)<br/>
-            • Sconfitta: +1 punto partecipazione<br/>
-            • Tutti e 4 i giocatori ricevono i punti automaticamente
-          </p>
-        </div>
+        {/* STEP 3: Score */}
+        {step === 3 && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+          }}>
+            {/* Teams recap */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>🔵 NOI</p>
+                <p style={{ fontSize: '15px', fontWeight: 700, color: '#1D4ED8' }}>
+                  {getName(team1[0])}<br/>{getName(team1[1])}
+                </p>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#94A3B8', alignSelf: 'center' }}>VS</div>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>🔴 LORO</p>
+                <p style={{ fontSize: '15px', fontWeight: 700, color: '#DC2626' }}>
+                  {getName(team2[0])}<br/>{getName(team2[1])}
+                </p>
+              </div>
+            </div>
 
-        {/* Save */}
-        <button
-          onClick={handleSave}
-          disabled={saving || !player1 || !player2 || !player3 || !player4 || !score1 || !score2}
-          style={{
-            width: '100%',
-            padding: '18px',
-            background: (!player1 || !player2 || !player3 || !player4 || !score1 || !score2) ? '#E2E8F0' : 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)',
-            color: (!player1 || !player2 || !player3 || !player4 || !score1 || !score2) ? '#94A3B8' : '#fff',
-            border: 'none',
-            borderRadius: '14px',
-            fontSize: '17px',
-            fontWeight: 700,
-            cursor: (!player1 || !player2 || !player3 || !player4 || !score1 || !score2) ? 'not-allowed' : 'pointer',
-            boxShadow: (!player1 || !player2 || !player3 || !player4 || !score1 || !score2) ? 'none' : '0 8px 32px rgba(34, 197, 94, 0.3)'
-          }}
-        >
-          {saving ? 'Salvataggio...' : '🏆 Registra Partita'}
-        </button>
+            {/* Set selector */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
+              {[2, 3].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setSets(n)}
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    background: sets === n ? '#1a1a2e' : '#F1F5F9',
+                    color: sets === n ? '#fff' : '#64748B',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {n} set
+                </button>
+              ))}
+            </div>
+
+            {/* Score inputs */}
+            {scores.slice(0, sets).map((score, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                marginBottom: '16px',
+                padding: '16px',
+                background: '#F8FAFC',
+                borderRadius: '16px'
+              }}>
+                <p style={{ fontSize: '13px', color: '#64748B', width: '50px' }}>Set {i + 1}</p>
+                
+                {/* Team 1 score */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={() => updateScore(i, 'team1', -1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: '#E2E8F0',
+                      fontSize: '20px',
+                      cursor: 'pointer',
+                      color: '#64748B'
+                    }}
+                  >−</button>
+                  <span style={{
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#3B82F6',
+                    color: '#fff',
+                    borderRadius: '12px',
+                    fontSize: '20px',
+                    fontWeight: 700
+                  }}>{score.team1}</span>
+                  <button
+                    onClick={() => updateScore(i, 'team1', 1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: '#3B82F6',
+                      fontSize: '20px',
+                      cursor: 'pointer',
+                      color: '#fff'
+                    }}
+                  >+</button>
+                </div>
+
+                <span style={{ fontSize: '20px', fontWeight: 700, color: '#94A3B8' }}>-</span>
+
+                {/* Team 2 score */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={() => updateScore(i, 'team2', -1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: '#E2E8F0',
+                      fontSize: '20px',
+                      cursor: 'pointer',
+                      color: '#64748B'
+                    }}
+                  >−</button>
+                  <span style={{
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#EF4444',
+                    color: '#fff',
+                    borderRadius: '12px',
+                    fontSize: '20px',
+                    fontWeight: 700
+                  }}>{score.team2}</span>
+                  <button
+                    onClick={() => updateScore(i, 'team2', 1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: '#EF4444',
+                      fontSize: '20px',
+                      cursor: 'pointer',
+                      color: '#fff'
+                    }}
+                  >+</button>
+                </div>
+              </div>
+            ))}
+
+            {/* Winner preview */}
+            {getWinner() !== 0 && (
+              <div style={{
+                marginTop: '16px',
+                padding: '16px',
+                background: getWinner() === 1 ? '#EFF6FF' : '#FEF2F2',
+                borderRadius: '12px',
+                textAlign: 'center'
+              }}>
+                <p style={{ fontSize: '13px', color: '#64748B' }}>Vincitore</p>
+                <p style={{ 
+                  fontSize: '18px', 
+                  fontWeight: 700, 
+                  color: getWinner() === 1 ? '#1D4ED8' : '#DC2626',
+                  marginTop: '4px'
+                }}>
+                  {getWinner() === 1 ? '🏆 ' : ''}
+                  {getWinner() === 1 ? `${getName(team1[0])} + ${getName(team1[1])}` : `${getName(team2[0])} + ${getName(team2[1])}`}
+                  {getWinner() === 2 ? ' 🏆' : ''}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom navigation */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '16px 20px',
+        paddingBottom: '32px',
+        background: 'linear-gradient(180deg, rgba(248,250,252,0) 0%, #F8FAFC 20%)',
+        display: 'flex',
+        gap: '12px'
+      }}>
+        {step > 1 && (
+          <button
+            onClick={() => setStep(step - 1)}
+            style={{
+              flex: 1,
+              padding: '16px',
+              background: '#fff',
+              border: '2px solid #E2E8F0',
+              borderRadius: '14px',
+              fontSize: '16px',
+              fontWeight: 600,
+              color: '#64748B',
+              cursor: 'pointer'
+            }}
+          >
+            ← Indietro
+          </button>
+        )}
+        
+        {step < 3 ? (
+          <button
+            onClick={() => setStep(step + 1)}
+            disabled={!canProceed}
+            style={{
+              flex: 2,
+              padding: '16px',
+              background: canProceed ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' : '#E2E8F0',
+              border: 'none',
+              borderRadius: '14px',
+              fontSize: '16px',
+              fontWeight: 700,
+              color: canProceed ? '#fff' : '#94A3B8',
+              cursor: canProceed ? 'pointer' : 'not-allowed',
+              boxShadow: canProceed ? '0 8px 32px rgba(245, 158, 11, 0.3)' : 'none'
+            }}
+          >
+            Avanti →
+          </button>
+        ) : (
+          <button
+            onClick={handleSave}
+            disabled={saving || !canProceed}
+            style={{
+              flex: 2,
+              padding: '16px',
+              background: canProceed ? 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)' : '#E2E8F0',
+              border: 'none',
+              borderRadius: '14px',
+              fontSize: '16px',
+              fontWeight: 700,
+              color: canProceed ? '#fff' : '#94A3B8',
+              cursor: canProceed ? 'pointer' : 'not-allowed',
+              boxShadow: canProceed ? '0 8px 32px rgba(34, 197, 94, 0.3)' : 'none'
+            }}
+          >
+            {saving ? 'Salvo...' : '✓ Registra'}
+          </button>
+        )}
       </div>
     </div>
   );

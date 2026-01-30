@@ -1,7 +1,17 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import RoleSwitcher from './RoleSwitcher';
+
+const colors = {
+  primary: '#0E5E4A',
+  black: '#111111',
+  background: '#FAFAF7',
+  blue: '#1E6AE1',
+  orange: '#F46A25',
+  yellow: '#F4C430',
+  gray: '#999999',
+  lightGray: '#F5F5F3'
+};
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -15,270 +25,379 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single();
 
-  const canCoach = profile?.can_coach || profile?.role === 'coach';
-  const activeRole = profile?.active_role || profile?.role || 'student';
-  const isCoachMode = activeRole === 'coach';
   const firstName = profile?.full_name?.split(' ')[0] || 'Campione';
 
-  const { count: schedeCount } = await supabase
-    .from('training_cards')
-    .select('*', { count: 'exact', head: true })
+  // Leghe utente
+  const { data: userLeagues } = await supabase
+    .from('league_members')
+    .select('league_id, points, wins, losses, league:leagues(id, name)')
     .eq('user_id', user.id);
 
-  const { data: lastTraining } = await supabase
-    .from('training_cards')
-    .select('training_date')
-    .eq('user_id', user.id)
-    .order('training_date', { ascending: false })
+  // Prossimo evento
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  
+  const { data: nextEvent } = await supabase
+    .from('league_events')
+    .select('*, league:leagues(name)')
+    .eq('status', 'planned')
+    .gte('event_date', today)
+    .order('event_date', { ascending: true })
     .limit(1)
     .single();
 
-  const daysSinceLastTraining = lastTraining?.training_date
-    ? Math.floor((Date.now() - new Date(lastTraining.training_date).getTime()) / (1000 * 60 * 60 * 24))
-    : null;
+  const isEventToday = nextEvent?.event_date === today;
+  const isEventTomorrow = nextEvent?.event_date === tomorrow;
+  const hasUrgentEvent = isEventToday || isEventTomorrow;
 
-  // Stats per coach
-  let studentsCount = 0;
-  let activePlansCount = 0;
-  let videosCount = 0;
-  
-  if (isCoachMode) {
-    const { count: students } = await supabase
-      .from('coach_student_connections')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', user.id)
-      .eq('status', 'accepted');
-    studentsCount = students || 0;
+  // Piani dal maestro
+  const { data: newPlans } = await supabase
+    .from('training_plans')
+    .select('*, coach:profiles!training_plans_coach_id_fkey(full_name)')
+    .eq('student_id', user.id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1);
 
-    const { count: plans } = await supabase
-      .from('training_plans')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', user.id)
-      .eq('status', 'active');
-    activePlansCount = plans || 0;
+  const hasNewPlan = newPlans && newPlans.length > 0;
 
-    const { count: videos } = await supabase
-      .from('coach_videos')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', user.id);
-    videosCount = videos || 0;
+  // Partite recenti
+  const { data: recentMatches } = await supabase
+    .from('matches')
+    .select('*')
+    .or(`player1_id.eq.${user.id},player2_id.eq.${user.id},player3_id.eq.${user.id},player4_id.eq.${user.id}`)
+    .order('played_at', { ascending: false })
+    .limit(20);
+
+  // Calcola streak
+  let currentStreak = 0;
+  for (const match of recentMatches || []) {
+    const inTeam1 = [match.player1_id, match.player2_id].includes(user.id);
+    const won = (inTeam1 && match.winner_team === 1) || (!inTeam1 && match.winner_team === 2);
+    if (won) currentStreak++;
+    else break;
   }
 
-  const colors = isCoachMode 
-    ? { gradient: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)', primary: '#22C55E', shadow: 'rgba(34, 197, 94, 0.3)' }
-    : { gradient: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)', primary: '#0066FF', shadow: 'rgba(0, 102, 255, 0.3)' };
+  // Posizione classifica
+  let currentPosition = 0;
+  if (userLeagues && userLeagues.length > 0) {
+    const { data: leagueMembers } = await supabase
+      .from('league_members')
+      .select('user_id, points')
+      .eq('league_id', userLeagues[0].league_id)
+      .order('points', { ascending: false });
+    
+    currentPosition = (leagueMembers?.findIndex(m => m.user_id === user.id) ?? -1) + 1;
+  }
+
+  // HERO Priority Stack
+  type HeroType = 'event' | 'plan' | 'streak' | 'default';
+  let heroType: HeroType = 'default';
+  let heroData: any = {};
+
+  if (hasUrgentEvent && nextEvent) {
+    heroType = 'event';
+    heroData = {
+      date: nextEvent.event_date,
+      time: nextEvent.event_time,
+      location: nextEvent.location,
+      league: (nextEvent.league as any)?.name,
+      isToday: isEventToday
+    };
+  } else if (hasNewPlan && newPlans[0]) {
+    heroType = 'plan';
+    heroData = {
+      title: newPlans[0].title,
+      coach: (newPlans[0].coach as any)?.full_name?.split(' ')[0],
+      id: newPlans[0].id
+    };
+  } else if (currentStreak >= 3) {
+    heroType = 'streak';
+    heroData = { streak: currentStreak };
+  }
+
+  // Stats settimana
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const thisWeekMatches = recentMatches?.filter(m => new Date(m.played_at) >= oneWeekAgo) || [];
+  const thisWeekWins = thisWeekMatches.filter(m => {
+    const inTeam1 = [m.player1_id, m.player2_id].includes(user.id);
+    return (inTeam1 && m.winner_team === 1) || (!inTeam1 && m.winner_team === 2);
+  }).length;
+
+  const primaryLeague = userLeagues?.[0];
+  const hasLeagues = userLeagues && userLeagues.length > 0;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
-      paddingBottom: '100px'
-    }}>
+    <div style={{ minHeight: '100vh', background: colors.background, paddingBottom: '100px' }}>
+      
       {/* Header */}
-      <div style={{
-        background: colors.gradient,
-        padding: '48px 24px 32px',
-        borderRadius: '0 0 32px 32px',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '120px', height: '120px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }} />
-        <div style={{ position: 'absolute', bottom: '-40px', left: '20%', width: '80px', height: '80px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%' }} />
-        
-        {canCoach && <RoleSwitcher currentRole={activeRole} />}
-        
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: 500, marginBottom: '4px', marginTop: canCoach ? '16px' : '0' }}>
-          {isCoachMode ? '👨‍🏫 Area Maestro' : 'Bentornato'}
-        </p>
-        <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: 800, letterSpacing: '-0.5px' }}>
-          {firstName} {isCoachMode ? '🎾' : '👋'}
-        </h1>
+      <div style={{ padding: '48px 20px 16px', background: colors.background }}>
+        <p style={{ color: colors.gray, fontSize: '14px' }}>Ciao</p>
+        <h1 style={{ color: colors.black, fontSize: '28px', fontWeight: 700 }}>{firstName}</h1>
       </div>
 
-      <div style={{ padding: '0 20px', marginTop: '-20px' }}>
-        {/* Stats Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
-          {isCoachMode ? (
-            <>
-              <StatCard value={studentsCount} label="Allievi" color={colors.primary} />
-              <StatCard value={activePlansCount} label="Piani Attivi" color="#3B82F6" />
-              <StatCard value={videosCount} label="Video" color="#8B5CF6" />
-            </>
-          ) : (
-            <>
-              <StatCard value={schedeCount || 0} label="Schede" color={colors.primary} />
-              <StatCard value={0} label="Streak 🔥" color="#FF6B35" />
-              <StatCard value={daysSinceLastTraining !== null ? daysSinceLastTraining : '—'} label="Giorni fa" color="#14B8A6" />
-            </>
-          )}
-        </div>
-
-        {/* Quick Action */}
-        {isCoachMode ? (
-          <Link href="/plans/new" style={{ textDecoration: 'none' }}>
+      {/* HERO DINAMICO */}
+      <div style={{ padding: '0 20px', marginBottom: '24px' }}>
+        {heroType === 'event' && (
+          <Link href="/calendar" style={{ textDecoration: 'none' }}>
             <div style={{
-              background: colors.gradient,
+              background: colors.primary,
               borderRadius: '20px',
-              padding: '20px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              marginBottom: '24px',
-              boxShadow: `0 8px 32px ${colors.shadow}`,
-              cursor: 'pointer'
+              padding: '24px',
+              color: '#fff'
             }}>
-              <div style={{ width: '52px', height: '52px', background: 'rgba(255,255,255,0.2)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                📋
-              </div>
-              <div>
-                <p style={{ color: '#fff', fontSize: '18px', fontWeight: 700 }}>Nuovo Piano</p>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 500 }}>Crea e invia ai tuoi allievi</p>
-              </div>
-              <div style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.6)', fontSize: '20px' }}>→</div>
-            </div>
-          </Link>
-        ) : (
-          <Link href="/training/new" style={{ textDecoration: 'none' }}>
-            <div style={{
-              background: colors.gradient,
-              borderRadius: '20px',
-              padding: '20px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              marginBottom: '24px',
-              boxShadow: `0 8px 32px ${colors.shadow}`,
-              cursor: 'pointer'
-            }}>
-              <div style={{ width: '52px', height: '52px', background: 'rgba(255,255,255,0.2)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                ✍️
-              </div>
-              <div>
-                <p style={{ color: '#fff', fontSize: '18px', fontWeight: 700 }}>Nuova Scheda</p>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 500 }}>Registra il tuo allenamento</p>
-              </div>
-              <div style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.6)', fontSize: '20px' }}>→</div>
+              <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '8px' }}>
+                {heroData.isToday ? '📅 OGGI' : '📅 DOMANI'}
+              </p>
+              <p style={{ fontSize: '22px', fontWeight: 700, marginBottom: '4px' }}>
+                Partita alle {heroData.time?.slice(0,5) || '—'}
+              </p>
+              {heroData.location && (
+                <p style={{ fontSize: '14px', opacity: 0.8 }}>📍 {heroData.location}</p>
+              )}
+              <p style={{ fontSize: '13px', opacity: 0.7, marginTop: '8px' }}>{heroData.league}</p>
             </div>
           </Link>
         )}
 
-        {/* Menu */}
-        {isCoachMode ? (
-          <>
-            {/* Gestione */}
-            <SectionCard title="Gestione" icon="📊" color={colors.primary}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <MenuRow href="/connections" icon="👥" title="I miei Allievi" subtitle="Gestisci e monitora" />
-                <MenuRow href="/plans" icon="📋" title="Piani Inviati" subtitle="Vedi tutti i piani" />
-                <MenuRow href="/evaluations" icon="⭐" title="Valutazioni" subtitle="Valuta i progressi" />
+        {heroType === 'plan' && (
+          <Link href={`/plans/${heroData.id}`} style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: `linear-gradient(135deg, ${colors.blue} 0%, #0052CC 100%)`,
+              borderRadius: '20px',
+              padding: '24px',
+              color: '#fff'
+            }}>
+              <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '8px' }}>👨‍🏫 NUOVO PIANO</p>
+              <p style={{ fontSize: '22px', fontWeight: 700, marginBottom: '4px' }}>
+                {heroData.title}
+              </p>
+              <p style={{ fontSize: '14px', opacity: 0.8 }}>da Coach {heroData.coach}</p>
+              <div style={{
+                marginTop: '16px',
+                padding: '10px 20px',
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '10px',
+                display: 'inline-block',
+                fontSize: '14px',
+                fontWeight: 600
+              }}>
+                Inizia ora →
               </div>
-            </SectionCard>
+            </div>
+          </Link>
+        )}
 
-            {/* Strumenti Coach */}
-            <SectionCard title="Strumenti Coach" icon="🛠️" color={colors.primary}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <MenuRow href="/templates" icon="📝" title="Template Piani" subtitle="Crea piani riutilizzabili" />
-                <MenuRow href="/videos" icon="📹" title="La mia Videoteca" subtitle="Organizza video YouTube" />
-                <MenuRow href="/calendar" icon="📅" title="Calendario Lezioni" subtitle="Pianifica la settimana" />
-              </div>
-            </SectionCard>
-          </>
-        ) : (
-          <>
-            <SectionCard title="Accesso Rapido" icon="⚡" color={colors.primary}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-                <QuickAccessTile href="/training" icon="📝" label="Le mie Schede" />
-                <QuickAccessTile href="/calendar" icon="📅" label="Calendario" />
-                <QuickAccessTile href="/stats" icon="📊" label="Statistiche" />
-                <QuickAccessTile href="/leagues" icon="🏆" label="Leghe" />
-              </div>
-            </SectionCard>
+        {heroType === 'streak' && (
+          <div style={{
+            background: `linear-gradient(135deg, ${colors.orange} 0%, #D35400 100%)`,
+            borderRadius: '20px',
+            padding: '24px',
+            color: '#fff'
+          }}>
+            <p style={{ fontSize: '13px', opacity: 0.8, marginBottom: '8px' }}>🔥 SEI ON FIRE</p>
+            <p style={{ fontSize: '28px', fontWeight: 800 }}>
+              {heroData.streak} vittorie di fila!
+            </p>
+            <p style={{ fontSize: '14px', opacity: 0.8, marginTop: '4px' }}>Non fermarti ora</p>
+          </div>
+        )}
 
-            <SectionCard title="Il mio Percorso" icon="🎯" color={colors.primary}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <MenuRow href="/plans" icon="📋" title="Piani Allenamento" subtitle="I tuoi programmi" />
-                <MenuRow href="/evaluations" icon="📊" title="Valutazioni" subtitle="I tuoi progressi" />
-                <MenuRow href="/connections" icon="🔗" title="Il mio Maestro" subtitle="Connessioni" />
+        {heroType === 'default' && (
+          <Link
+            href={hasLeagues ? `/leagues/${(primaryLeague?.league as any)?.id}/match/new` : '/leagues'}
+            style={{ textDecoration: 'none' }}
+          >
+            <div style={{
+              background: colors.primary,
+              borderRadius: '20px',
+              padding: '24px',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px'
+            }}>
+              <span style={{ fontSize: '36px' }}>🎾</span>
+              <div>
+                <p style={{ fontSize: '20px', fontWeight: 700 }}>Registra partita</p>
+                <p style={{ fontSize: '14px', opacity: 0.8 }}>20 secondi</p>
               </div>
-            </SectionCard>
-          </>
+            </div>
+          </Link>
         )}
       </div>
-    </div>
-  );
-}
 
-function StatCard({ value, label, color }: { value: number | string; label: string; color: string }) {
-  return (
-    <div style={{
-      background: '#fff',
-      borderRadius: '20px',
-      padding: '20px 16px',
-      textAlign: 'center',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-      border: '1px solid rgba(0,0,0,0.04)'
-    }}>
-      <p style={{ fontSize: '28px', fontWeight: 800, color, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: '11px', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '8px' }}>{label}</p>
-    </div>
-  );
-}
-
-function SectionCard({ title, icon, color, children }: { title: string; icon: string; color: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      background: '#fff',
-      borderRadius: '24px',
-      padding: '24px',
-      marginBottom: '16px',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-      border: '1px solid rgba(0,0,0,0.04)'
-    }}>
-      <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span>{icon}</span> {title}
-      </h2>
-      {children}
-    </div>
-  );
-}
-
-function QuickAccessTile({ href, icon, label }: { href: string; icon: string; label: string }) {
-  return (
-    <Link href={href} style={{ textDecoration: 'none' }}>
-      <div style={{
-        background: '#F8FAFC',
-        borderRadius: '16px',
-        padding: '20px 16px',
-        textAlign: 'center',
-        cursor: 'pointer',
-        border: '1px solid transparent'
-      }}>
-        <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>{icon}</span>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a2e' }}>{label}</span>
-      </div>
-    </Link>
-  );
-}
-
-function MenuRow({ href, icon, title, subtitle }: { href: string; icon: string; title: string; subtitle: string }) {
-  return (
-    <Link href={href} style={{ textDecoration: 'none' }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '14px',
-        padding: '14px 16px',
-        background: '#F8FAFC',
-        borderRadius: '14px',
-        cursor: 'pointer'
-      }}>
-        <span style={{ fontSize: '22px' }}>{icon}</span>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a2e' }}>{title}</p>
-          <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>{subtitle}</p>
+      {/* FEED */}
+      <div style={{ padding: '0 20px' }}>
+        
+        {/* Quick Actions */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+          <Link href="/quick-match" style={{ textDecoration: 'none', flex: 1 }}>
+            <div style={{
+              background: '#fff',
+              borderRadius: '14px',
+              padding: '16px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '24px' }}>⚡</span>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: colors.black, marginTop: '6px' }}>Partita Veloce</p>
+            </div>
+          </Link>
+          <Link href="/profile/player-card" style={{ textDecoration: 'none', flex: 1 }}>
+            <div style={{
+              background: '#fff',
+              borderRadius: '14px',
+              padding: '16px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '24px' }}>🏆</span>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: colors.black, marginTop: '6px' }}>Player Card</p>
+            </div>
+          </Link>
+          <Link href="/companions" style={{ textDecoration: 'none', flex: 1 }}>
+            <div style={{
+              background: '#fff',
+              borderRadius: '14px',
+              padding: '16px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '24px' }}>👥</span>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: colors.black, marginTop: '6px' }}>Compagni</p>
+            </div>
+          </Link>
         </div>
-        <span style={{ color: '#CBD5E1', fontSize: '18px' }}>›</span>
+
+        {/* Stats Settimana */}
+        {thisWeekMatches.length > 0 && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '20px',
+            marginBottom: '12px'
+          }}>
+            <p style={{ fontSize: '12px', color: colors.gray, fontWeight: 600, marginBottom: '12px' }}>
+              QUESTA SETTIMANA
+            </p>
+            <div style={{ display: 'flex', gap: '24px' }}>
+              <div>
+                <p style={{ fontSize: '28px', fontWeight: 700, color: colors.black }}>
+                  {thisWeekMatches.length}
+                </p>
+                <p style={{ fontSize: '12px', color: colors.gray }}>partite</p>
+              </div>
+              <div>
+                <p style={{ fontSize: '28px', fontWeight: 700, color: colors.primary }}>
+                  {thisWeekWins}
+                </p>
+                <p style={{ fontSize: '12px', color: colors.gray }}>vittorie</p>
+              </div>
+              {currentPosition > 0 && (
+                <div>
+                  <p style={{ fontSize: '28px', fontWeight: 700, color: colors.blue }}>
+                    #{currentPosition}
+                  </p>
+                  <p style={{ fontSize: '12px', color: colors.gray }}>classifica</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Leghe */}
+        {hasLeagues && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '20px',
+            marginBottom: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <p style={{ fontSize: '12px', color: colors.gray, fontWeight: 600 }}>LE TUE LEGHE</p>
+              <Link href="/leagues" style={{ fontSize: '12px', color: colors.primary, fontWeight: 600, textDecoration: 'none' }}>
+                Tutte →
+              </Link>
+            </div>
+            {userLeagues.slice(0, 2).map((ul: any) => (
+              <Link key={ul.league_id} href={`/leagues/${ul.league?.id}`} style={{ textDecoration: 'none' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '14px',
+                  background: colors.lightGray,
+                  borderRadius: '12px',
+                  marginBottom: '8px'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 600, color: colors.black, fontSize: '15px' }}>{ul.league?.name}</p>
+                    <p style={{ fontSize: '12px', color: colors.gray }}>{ul.wins}V - {ul.losses}P</p>
+                  </div>
+                  <p style={{ fontSize: '22px', fontWeight: 700, color: colors.primary }}>{ul.points}</p>
+                </div>
+              </Link>
+            ))}
+            <Link href="/leagues/new" style={{ textDecoration: 'none' }}>
+              <div style={{
+                padding: '14px',
+                border: '2px dashed #E0E0E0',
+                borderRadius: '12px',
+                textAlign: 'center'
+              }}>
+                <p style={{ fontSize: '14px', color: colors.gray, fontWeight: 500 }}>+ Nuova lega</p>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {/* Se non ha leghe */}
+        {!hasLeagues && (
+          <Link href="/leagues/new" style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: '#fff',
+              borderRadius: '16px',
+              padding: '24px',
+              marginBottom: '12px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '40px', display: 'block', marginBottom: '12px' }}>🏆</span>
+              <p style={{ fontWeight: 700, color: colors.black, fontSize: '17px', marginBottom: '4px' }}>Crea la tua prima lega</p>
+              <p style={{ fontSize: '14px', color: colors.gray }}>Invita amici e inizia a giocare!</p>
+            </div>
+          </Link>
+        )}
+
+        {/* Allenamento */}
+        <div style={{
+          background: '#fff',
+          borderRadius: '16px',
+          padding: '20px',
+          marginBottom: '12px'
+        }}>
+          <p style={{ fontSize: '12px', color: colors.gray, fontWeight: 600, marginBottom: '14px' }}>
+            ALLENAMENTO
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            <Link href="/training" style={{ textDecoration: 'none' }}>
+              <div style={{ textAlign: 'center', padding: '14px', background: colors.lightGray, borderRadius: '12px' }}>
+                <span style={{ fontSize: '22px' }}>📝</span>
+                <p style={{ fontSize: '12px', fontWeight: 600, color: colors.black, marginTop: '6px' }}>Schede</p>
+              </div>
+            </Link>
+            <Link href="/plans" style={{ textDecoration: 'none' }}>
+              <div style={{ textAlign: 'center', padding: '14px', background: colors.lightGray, borderRadius: '12px' }}>
+                <span style={{ fontSize: '22px' }}>📋</span>
+                <p style={{ fontSize: '12px', fontWeight: 600, color: colors.black, marginTop: '6px' }}>Piani</p>
+              </div>
+            </Link>
+            <Link href="/connections" style={{ textDecoration: 'none' }}>
+              <div style={{ textAlign: 'center', padding: '14px', background: colors.lightGray, borderRadius: '12px' }}>
+                <span style={{ fontSize: '22px' }}>👨‍🏫</span>
+                <p style={{ fontSize: '12px', fontWeight: 600, color: colors.black, marginTop: '6px' }}>Maestro</p>
+              </div>
+            </Link>
+          </div>
+        </div>
+
       </div>
-    </Link>
+    </div>
   );
 }
