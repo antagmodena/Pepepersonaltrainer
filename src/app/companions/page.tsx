@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Companion {
   user_id: string;
@@ -51,6 +52,7 @@ export default function CompanionsPage() {
   const [creating, setCreating] = useState(false);
 
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => { loadData(); }, []);
 
@@ -90,7 +92,6 @@ export default function CompanionsPage() {
       allLeagueMembers = members || [];
     }
 
-    // Unique user IDs from leagues
     const leagueMemberIds = [...new Set(allLeagueMembers.map(m => m.user_id))];
 
     // 2. Carica partite
@@ -100,7 +101,6 @@ export default function CompanionsPage() {
       .or(`player1_id.eq.${user.id},player2_id.eq.${user.id},player3_id.eq.${user.id},player4_id.eq.${user.id}`)
       .order('played_at', { ascending: false });
 
-    // IDs da partite
     const matchPlayerIds = new Set<string>();
     matches?.forEach(m => {
       [m.player1_id, m.player2_id, m.player3_id, m.player4_id].forEach(id => {
@@ -108,7 +108,6 @@ export default function CompanionsPage() {
       });
     });
 
-    // Combina tutti gli ID unici
     const allPlayerIds = [...new Set([...leagueMemberIds, ...matchPlayerIds])];
 
     if (allPlayerIds.length === 0) {
@@ -127,12 +126,11 @@ export default function CompanionsPage() {
       profileMap[p.id] = p.full_name || 'Giocatore';
     });
 
-    // 4. Calcola stats per ogni persona
+    // 4. Calcola stats
     const companionStats: Record<string, Companion> = {};
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Inizializza tutti (anche quelli mai giocati)
     allPlayerIds.forEach(id => {
       companionStats[id] = {
         user_id: id,
@@ -149,7 +147,6 @@ export default function CompanionsPage() {
       };
     });
 
-    // Aggiorna con dati partite
     matches?.forEach(match => {
       const myTeam = [match.player1_id, match.player2_id].includes(user.id) ? 1 : 2;
       const iWon = match.winner_team === myTeam;
@@ -217,13 +214,11 @@ export default function CompanionsPage() {
       }
     });
 
-    // 6. Ordina: giocati recenti → giocati frequenti → mai giocati
+    // 6. Ordina
     const sorted = Object.values(companionStats).sort((a, b) => {
-      // Prima chi ha giocato
       if (a.totalMatches > 0 && b.totalMatches === 0) return -1;
       if (a.totalMatches === 0 && b.totalMatches > 0) return 1;
       
-      // Tra chi ha giocato: recenti prima
       if (a.totalMatches > 0 && b.totalMatches > 0) {
         const aDate = a.lastPlayed ? new Date(a.lastPlayed).getTime() : 0;
         const bDate = b.lastPlayed ? new Date(b.lastPlayed).getTime() : 0;
@@ -231,14 +226,13 @@ export default function CompanionsPage() {
         return b.totalMatches - a.totalMatches;
       }
       
-      // Mai giocati: alfabetico
       return a.name.localeCompare(b.name);
     });
 
     setCompanions(sorted);
     setFilteredCompanions(sorted);
 
-    // 7. Carica leghe utente per inviti
+    // 7. Carica leghe
     const { data: memberships } = await supabase
       .from('league_members')
       .select('league_id, leagues(id, name)')
@@ -344,6 +338,12 @@ export default function CompanionsPage() {
     }
   };
 
+  const goToQuickMatch = () => {
+    if (selectedCompanion) {
+      router.push(`/quick-match?partner=${encodeURIComponent(selectedCompanion.name)}`);
+    }
+  };
+
   const createEvent = async () => {
     if (!selectedLeague || !selectedDate || !selectedTime || !selectedCompanion) return;
     
@@ -367,6 +367,12 @@ export default function CompanionsPage() {
     }
 
     setCreating(false);
+  };
+
+  const inviteWhatsApp = () => {
+    if (!selectedCompanion) return;
+    const text = `🎾 Ehi ${selectedCompanion.name.split(' ')[0]}! Ti va una partita di padel? 💪`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const getTimeAgo = (dateStr: string | null) => {
@@ -408,7 +414,7 @@ export default function CompanionsPage() {
     <div style={{ minHeight: '100vh', background: '#FAFAF7', paddingBottom: '100px' }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #0E5E4A 0%, #0A4A3A 100%)',
+        background: 'linear-gradient(135deg, #1A8CD8 0%, #1565C0 100%)',
         padding: '48px 24px 24px',
         borderRadius: '0 0 32px 32px'
       }}>
@@ -459,7 +465,7 @@ export default function CompanionsPage() {
                 display: 'inline-block',
                 marginTop: '20px',
                 padding: '14px 28px',
-                background: '#0E5E4A',
+                background: '#1A8CD8',
                 color: '#fff',
                 borderRadius: '12px',
                 textDecoration: 'none',
@@ -488,7 +494,7 @@ export default function CompanionsPage() {
                 <div style={{
                   width: '48px',
                   height: '48px',
-                  background: companion.totalMatches > 0 ? '#0E5E4A' : '#E5E5E5',
+                  background: companion.totalMatches > 0 ? '#1A8CD8' : '#E5E5E5',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -552,7 +558,7 @@ export default function CompanionsPage() {
               <div style={{
                 width: '64px',
                 height: '64px',
-                background: selectedCompanion.totalMatches > 0 ? '#0E5E4A' : '#E5E5E5',
+                background: selectedCompanion.totalMatches > 0 ? '#1A8CD8' : '#E5E5E5',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
@@ -574,13 +580,13 @@ export default function CompanionsPage() {
               )}
             </div>
 
-            {/* Stats - solo se hanno giocato */}
+            {/* Stats */}
             {selectedCompanion.totalMatches > 0 ? (
               <>
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
-                  <div style={{ flex: 1, padding: '16px', background: '#E8F5E9', borderRadius: '14px', textAlign: 'center' }}>
-                    <p style={{ fontSize: '11px', color: '#0E5E4A', fontWeight: 600, marginBottom: '6px' }}>🤝 INSIEME</p>
-                    <p style={{ fontSize: '24px', fontWeight: 800, color: '#0E5E4A' }}>
+                  <div style={{ flex: 1, padding: '16px', background: '#E8F4FC', borderRadius: '14px', textAlign: 'center' }}>
+                    <p style={{ fontSize: '11px', color: '#1A8CD8', fontWeight: 600, marginBottom: '6px' }}>🤝 INSIEME</p>
+                    <p style={{ fontSize: '24px', fontWeight: 800, color: '#1A8CD8' }}>
                       {selectedCompanion.togetherWins + selectedCompanion.togetherLosses > 0 
                         ? Math.round((selectedCompanion.togetherWins / (selectedCompanion.togetherWins + selectedCompanion.togetherLosses)) * 100) + '%'
                         : '—'}
@@ -589,9 +595,9 @@ export default function CompanionsPage() {
                       {selectedCompanion.togetherWins}V - {selectedCompanion.togetherLosses}P
                     </p>
                   </div>
-                  <div style={{ flex: 1, padding: '16px', background: '#FEF2F2', borderRadius: '14px', textAlign: 'center' }}>
-                    <p style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600, marginBottom: '6px' }}>⚔️ CONTRO</p>
-                    <p style={{ fontSize: '24px', fontWeight: 800, color: '#DC2626' }}>
+                  <div style={{ flex: 1, padding: '16px', background: '#FEE2E2', borderRadius: '14px', textAlign: 'center' }}>
+                    <p style={{ fontSize: '11px', color: '#EF4444', fontWeight: 600, marginBottom: '6px' }}>⚔️ CONTRO</p>
+                    <p style={{ fontSize: '24px', fontWeight: 800, color: '#EF4444' }}>
                       {selectedCompanion.againstWins + selectedCompanion.againstLosses > 0 
                         ? Math.round((selectedCompanion.againstWins / (selectedCompanion.againstWins + selectedCompanion.againstLosses)) * 100) + '%'
                         : '—'}
@@ -624,7 +630,7 @@ export default function CompanionsPage() {
                             {match.type === 'together' ? '🤝' : '⚔️'}
                           </span>
                           <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: '13px', fontWeight: 600, color: match.won ? '#16A34A' : '#666' }}>
+                            <p style={{ fontSize: '13px', fontWeight: 600, color: match.won ? '#22C55E' : '#666' }}>
                               {match.won ? 'Vinta' : 'Persa'} {match.partner}
                             </p>
                           </div>
@@ -645,35 +651,80 @@ export default function CompanionsPage() {
 
             {/* Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Partita Veloce - NUOVO */}
               <button
-                onClick={openInvite}
-                disabled={userLeagues.length === 0}
+                onClick={goToQuickMatch}
                 style={{
                   width: '100%',
                   padding: '16px',
-                  background: userLeagues.length > 0 ? '#0E5E4A' : '#E5E5E5',
-                  color: userLeagues.length > 0 ? '#fff' : '#999',
+                  background: '#1A8CD8',
+                  color: '#fff',
                   border: 'none',
                   borderRadius: '14px',
                   fontSize: '16px',
                   fontWeight: 700,
-                  cursor: userLeagues.length > 0 ? 'pointer' : 'not-allowed'
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
                 }}
               >
-                🎾 {selectedCompanion.totalMatches > 0 ? 'Gioca ancora' : 'Proponi partita'}
+                ⚡ Partita Veloce con {selectedCompanion.name.split(' ')[0]}
               </button>
-              {userLeagues.length === 0 && (
-                <p style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>
-                  Crea una lega per proporre partite
-                </p>
+
+              {/* Pianifica in Lega */}
+              {userLeagues.length > 0 && (
+                <button
+                  onClick={openInvite}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    background: '#F5F5F3',
+                    color: '#111',
+                    border: 'none',
+                    borderRadius: '14px',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  📅 Pianifica in Lega
+                </button>
               )}
+
+              {/* WhatsApp diretto */}
+              <button
+                onClick={inviteWhatsApp}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  background: '#25D366',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '14px',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                Scrivi su WhatsApp
+              </button>
+
               <button
                 onClick={closeModal}
                 style={{
                   width: '100%',
                   padding: '14px',
-                  background: '#F5F5F3',
-                  color: '#666',
+                  background: 'transparent',
+                  color: '#999',
                   border: 'none',
                   borderRadius: '14px',
                   fontSize: '15px',
@@ -688,7 +739,7 @@ export default function CompanionsPage() {
         </div>
       )}
 
-      {/* Modal Invita */}
+      {/* Modal Invita in Lega */}
       {selectedCompanion && showInvite && (
         <div 
           onClick={closeModal}
@@ -713,7 +764,7 @@ export default function CompanionsPage() {
             }}
           >
             <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111', marginBottom: '20px', textAlign: 'center' }}>
-              🎾 Proponi partita a {selectedCompanion.name.split(' ')[0]}
+              📅 Pianifica con {selectedCompanion.name.split(' ')[0]}
             </h2>
 
             {/* Lega */}
@@ -726,8 +777,8 @@ export default function CompanionsPage() {
                     onClick={() => setSelectedLeague(league.id)}
                     style={{
                       padding: '14px 16px',
-                      background: selectedLeague === league.id ? '#E8F5E9' : '#F5F5F3',
-                      border: selectedLeague === league.id ? '2px solid #0E5E4A' : '2px solid transparent',
+                      background: selectedLeague === league.id ? '#E8F4FC' : '#F5F5F3',
+                      border: selectedLeague === league.id ? '2px solid #1A8CD8' : '2px solid transparent',
                       borderRadius: '12px',
                       textAlign: 'left',
                       cursor: 'pointer'
@@ -750,7 +801,7 @@ export default function CompanionsPage() {
                     onClick={() => setSelectedDate(opt.value)}
                     style={{
                       padding: '10px 14px',
-                      background: selectedDate === opt.value ? '#0E5E4A' : '#F5F5F3',
+                      background: selectedDate === opt.value ? '#1A8CD8' : '#F5F5F3',
                       color: selectedDate === opt.value ? '#fff' : '#666',
                       border: 'none',
                       borderRadius: '10px',
@@ -776,7 +827,7 @@ export default function CompanionsPage() {
                     onClick={() => setSelectedTime(time)}
                     style={{
                       padding: '10px 14px',
-                      background: selectedTime === time ? '#0E5E4A' : '#F5F5F3',
+                      background: selectedTime === time ? '#1A8CD8' : '#F5F5F3',
                       color: selectedTime === time ? '#fff' : '#666',
                       border: 'none',
                       borderRadius: '10px',
@@ -798,7 +849,7 @@ export default function CompanionsPage() {
               style={{
                 width: '100%',
                 padding: '16px',
-                background: (selectedLeague && selectedDate && selectedTime) ? '#0E5E4A' : '#E5E5E5',
+                background: (selectedLeague && selectedDate && selectedTime) ? '#1A8CD8' : '#E5E5E5',
                 color: (selectedLeague && selectedDate && selectedTime) ? '#fff' : '#999',
                 border: 'none',
                 borderRadius: '14px',
