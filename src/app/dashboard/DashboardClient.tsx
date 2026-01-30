@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 // Colori - BLU DOMINANTE
 const colors = {
@@ -149,14 +148,9 @@ export default function DashboardClient({
 }: Props) {
 
   // === LOGICA CTA CONTESTUALE ===
-  
-  // Caso 1: Hai già registrato oggi → mostra risultato, no CTA
   const alreadyPlayedToday = matchToday !== null;
-  
-  // Caso 2: Evento passato oggi, non ancora registrato → "Com'è andata?"
   const hasPastEvent = pastEventToday !== null && !alreadyPlayedToday;
   
-  // CTA solo se evento passato
   let ctaHref = '';
   let ctaText = '';
   let ctaIcon = '';
@@ -184,54 +178,44 @@ export default function DashboardClient({
   return (
     <div style={{ minHeight: '100vh', background: colors.white, paddingBottom: '100px' }}>
       
-      {/* Header */}
-      <div style={{ padding: '48px 20px 24px', background: colors.white }}>
-        <p style={{ color: colors.gray, fontSize: '15px', marginBottom: '4px' }}>Ciao</p>
-        <h1 style={{ color: colors.black, fontSize: '32px', fontWeight: 800 }}>{firstName}</h1>
-      </div>
-
-      <div style={{ padding: '0 20px' }}>
+      {/* === HEADER BLU SEMPRE PRESENTE === */}
+      <div style={{
+        background: `linear-gradient(135deg, ${colors.bluePadel} 0%, #1565C0 100%)`,
+        padding: '48px 20px 24px',
+        borderRadius: '0 0 24px 24px',
+        marginBottom: '20px'
+      }}>
+        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '15px', marginBottom: '4px' }}>Ciao</p>
+        <h1 style={{ color: colors.white, fontSize: '32px', fontWeight: 800, marginBottom: '16px' }}>{firstName}</h1>
         
-        {/* === HERO: PARTITA GIÀ REGISTRATA OGGI === */}
+        {/* Hero content dentro l'header blu */}
         {heroType === 'played' && matchToday && (
-          <Card style={{
-            background: colors.blueLight,
-            marginBottom: '16px',
-            border: `2px solid ${colors.bluePadel}20`
+          <div style={{
+            background: 'rgba(255,255,255,0.15)',
+            borderRadius: '14px',
+            padding: '16px'
           }}>
-            <p style={{ fontSize: '12px', color: colors.bluePadel, fontWeight: 600, marginBottom: '8px' }}>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>
               ✓ PARTITA DI OGGI
             </p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-              <span style={{ 
-                fontSize: '28px', 
-                fontWeight: 800, 
-                color: matchToday.winner_team === 1 ? colors.bluePadel : colors.gray 
-              }}>
+              <span style={{ fontSize: '28px', fontWeight: 800, color: colors.white }}>
                 {matchToday.score_team1}
               </span>
-              <span style={{ fontSize: '14px', color: colors.gray }}>vs</span>
-              <span style={{ 
-                fontSize: '28px', 
-                fontWeight: 800, 
-                color: matchToday.winner_team === 2 ? colors.bluePadel : colors.gray 
-              }}>
+              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>vs</span>
+              <span style={{ fontSize: '28px', fontWeight: 800, color: colors.white }}>
                 {matchToday.score_team2}
               </span>
             </div>
-            <p style={{ fontSize: '13px', color: colors.gray, textAlign: 'center', marginTop: '8px' }}>
-              {matchToday.winner_team === 1 || matchToday.winner_team === 2 ? '🎉 Ottima partita!' : ''}
-            </p>
-          </Card>
+          </div>
         )}
 
-        {/* === HERO: EVENTO IMMINENTE === */}
         {heroType === 'event' && nextEvent && (
           <Link href="/calendar" style={{ textDecoration: 'none' }}>
-            <Card style={{
-              background: `linear-gradient(135deg, ${colors.bluePadel} 0%, ${colors.blueMuted} 100%)`,
-              marginBottom: '16px',
-              border: 'none'
+            <div style={{
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: '14px',
+              padding: '16px'
             }}>
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>
                 {isEventToday ? '📅 OGGI' : '📅 DOMANI'}
@@ -242,16 +226,16 @@ export default function DashboardClient({
               {nextEvent?.location && (
                 <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>📍 {nextEvent.location}</p>
               )}
-            </Card>
+            </div>
           </Link>
         )}
 
-        {/* === HERO: NUOVO PIANO COACH === */}
         {heroType === 'plan' && newPlan && (
           <Link href={`/plans/${newPlan.id}`} style={{ textDecoration: 'none' }}>
-            <Card style={{
-              background: `linear-gradient(135deg, ${colors.bluePadel} 0%, #1565C0 100%)`,
-              marginBottom: '16px'
+            <div style={{
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: '14px',
+              padding: '16px'
             }}>
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>
                 👨‍🏫 NUOVO PIANO
@@ -262,15 +246,15 @@ export default function DashboardClient({
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
                 da Coach {newPlan.coach?.full_name?.split(' ')[0]}
               </p>
-            </Card>
+            </div>
           </Link>
         )}
 
-        {/* === HERO: STREAK === */}
         {heroType === 'streak' && (
-          <Card style={{
-            background: `linear-gradient(135deg, ${colors.orange} 0%, #D35400 100%)`,
-            marginBottom: '16px'
+          <div style={{
+            background: 'rgba(255,255,255,0.15)',
+            borderRadius: '14px',
+            padding: '16px'
           }}>
             <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>
               🔥 SEI ON FIRE
@@ -278,8 +262,29 @@ export default function DashboardClient({
             <p style={{ fontSize: '28px', fontWeight: 800, color: colors.white }}>
               {currentStreak} vittorie di fila!
             </p>
-          </Card>
+          </div>
         )}
+
+        {heroType === 'none' && (
+          <Link href="/calendar" style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: '14px',
+              padding: '16px',
+              textAlign: 'center'
+            }}>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                📅 Nessun evento in programma
+              </p>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>
+                Tap per pianificare una partita
+              </p>
+            </div>
+          </Link>
+        )}
+      </div>
+
+      <div style={{ padding: '0 20px' }}>
 
         {/* === CTA CONTESTUALE (solo se evento passato) === */}
         {hasPastEvent && (
