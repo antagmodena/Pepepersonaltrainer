@@ -27,6 +27,7 @@ export default function RemovePlanButton({ planId, isStudent, coachName }: Props
       .eq('id', planId);
 
     if (!error) {
+      router.refresh(); // Invalida la cache
       router.push('/plans');
     } else {
       alert('Errore: ' + error.message);

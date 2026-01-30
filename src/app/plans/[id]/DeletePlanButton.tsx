@@ -4,102 +4,120 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
-export default function DeletePlanButton({ planId, isCoach }: { planId: string; isCoach: boolean }) {
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
+interface Props {
+  planId: string;
+  isCoach: boolean;
+}
 
-  // Solo il coach può eliminare i piani
+export default function DeletePlanButton({ planId, isCoach }: Props) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const supabase = createClient();
+  const router = useRouter();
+
   if (!isCoach) return null;
 
   const handleDelete = async () => {
-    setDeleting(true);
+    setLoading(true);
+    
     const { error } = await supabase
       .from('training_plans')
       .delete()
       .eq('id', planId);
 
     if (!error) {
+      router.refresh(); // Invalida la cache
       router.push('/plans');
-      router.refresh();
     } else {
       alert('Errore: ' + error.message);
-      setDeleting(false);
-      setConfirming(false);
+      setLoading(false);
     }
   };
 
-  if (confirming) {
-    return (
-      <div style={{
-        background: '#FEF2F2',
-        borderRadius: '16px',
-        padding: '20px',
-        marginBottom: '16px',
-        border: '1px solid #FECACA'
-      }}>
-        <p style={{ color: '#DC2626', fontWeight: 600, marginBottom: '12px', textAlign: 'center' }}>
-          ⚠️ Sei sicuro di voler eliminare questo piano?
-        </p>
-        <p style={{ color: '#64748B', fontSize: '13px', marginBottom: '16px', textAlign: 'center' }}>
-          Questa azione non può essere annullata.
-        </p>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            onClick={() => setConfirming(false)}
-            style={{
-              flex: 1,
-              padding: '12px',
-              background: '#fff',
-              color: '#64748B',
-              border: '2px solid #E2E8F0',
-              borderRadius: '10px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            Annulla
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            style={{
-              flex: 1,
-              padding: '12px',
-              background: '#DC2626',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '10px',
-              fontWeight: 600,
-              cursor: deleting ? 'not-allowed' : 'pointer',
-              opacity: deleting ? 0.7 : 1
-            }}
-          >
-            {deleting ? 'Eliminazione...' : '🗑️ Elimina'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <button
-      onClick={() => setConfirming(true)}
-      style={{
-        width: '100%',
-        padding: '14px',
-        background: '#FEF2F2',
-        color: '#DC2626',
-        border: 'none',
-        borderRadius: '14px',
-        fontSize: '15px',
-        fontWeight: 600,
-        cursor: 'pointer',
-        marginBottom: '16px'
-      }}
-    >
-      🗑️ Elimina Piano
-    </button>
+    <>
+      <button
+        onClick={() => setShowConfirm(true)}
+        style={{
+          width: '100%',
+          marginTop: '12px',
+          padding: '14px',
+          background: '#FEE2E2',
+          color: '#DC2626',
+          border: 'none',
+          borderRadius: '12px',
+          fontSize: '14px',
+          fontWeight: 600,
+          cursor: 'pointer'
+        }}
+      >
+        🗑️ Elimina piano
+      </button>
+
+      {showConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '24px',
+            maxWidth: '340px',
+            width: '100%'
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '12px', color: '#111' }}>
+              Elimina piano?
+            </h3>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>
+              Questa azione è irreversibile. Il piano verrà eliminato definitivamente.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowConfirm(false)}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  background: '#F5F5F3',
+                  color: '#666',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  background: '#DC2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  opacity: loading ? 0.6 : 1
+                }}
+              >
+                {loading ? 'Elimino...' : 'Elimina'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
