@@ -4,6 +4,8 @@ import Link from 'next/link';
 import ExerciseFeedback from './ExerciseFeedback';
 import ExerciseActions from './ExerciseActions';
 import DeletePlanButton from './DeletePlanButton';
+import CompletePlanButton from './CompletePlanButton';
+import RemovePlanButton from './RemovePlanButton';
 
 interface Exercise {
   id: string;
@@ -66,6 +68,8 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
     return match ? match[1] : null;
   };
 
+  const coachName = (plan.coach as any)?.full_name || 'il coach';
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -74,7 +78,9 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
     }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #0E5E4A 0%, #0A4A3A 100%)',
+        background: plan.status === 'completed' 
+          ? 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)'
+          : 'linear-gradient(135deg, #0E5E4A 0%, #0A4A3A 100%)',
         padding: '48px 24px 32px',
         borderRadius: '0 0 32px 32px',
         marginBottom: '24px'
@@ -83,10 +89,10 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           ← Piani
         </Link>
         <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginTop: '8px' }}>
-          📋 {plan.title}
+          {plan.status === 'completed' ? '✅' : '📋'} {plan.title}
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginTop: '4px' }}>
-          {isCoach ? `👤 Per: ${plan.student?.full_name}` : `👨‍🏫 Da: ${plan.coach?.full_name}`}
+          {isCoach ? `👤 Per: ${plan.student?.full_name}` : `👨‍🏫 Da: ${coachName}`}
         </p>
         <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
           <span style={{
@@ -100,18 +106,33 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             {plan.end_date && ` - ${new Date(plan.end_date).toLocaleDateString('it-IT')}`}
           </span>
           <span style={{
-            background: plan.status === 'active' ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.2)',
+            background: plan.status === 'completed' ? 'rgba(255,255,255,0.3)' : 'rgba(34,197,94,0.3)',
             padding: '4px 12px',
             borderRadius: '20px',
             fontSize: '12px',
             color: '#fff'
           }}>
-            {plan.status === 'active' ? '✅ Attivo' : '📁 Completato'}
+            {plan.status === 'completed' ? '✅ Completato' : '🟢 Attivo'}
           </span>
         </div>
       </div>
 
       <div style={{ padding: '0 20px' }}>
+        {/* Info per studente */}
+        {isStudent && plan.status === 'active' && (
+          <div style={{
+            background: '#E0F2FE',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '16px',
+            border: '1px solid #7DD3FC'
+          }}>
+            <p style={{ fontSize: '14px', color: '#0369A1' }}>
+              💡 <strong>Come usare:</strong> Segna ogni esercizio come Fatto, Dubbi o Ripetere. Poi segna il piano come completato!
+            </p>
+          </div>
+        )}
+
         {/* Obiettivo */}
         {plan.description && (
           <div style={{
@@ -285,8 +306,18 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           </div>
         )}
 
-        {/* Elimina Piano */}
-        <DeletePlanButton planId={plan.id} isCoach={isCoach} />
+        {/* Pulsante Completa Piano - per studente */}
+        {isStudent && (
+          <CompletePlanButton planId={plan.id} isStudent={isStudent} currentStatus={plan.status} />
+        )}
+
+        {/* Rimuovi Piano - per studente */}
+        {isStudent && (
+          <RemovePlanButton planId={plan.id} isStudent={isStudent} coachName={coachName} />
+        )}
+
+        {/* Elimina Piano - per coach */}
+        {isCoach && <DeletePlanButton planId={plan.id} isCoach={isCoach} />}
       </div>
     </div>
   );

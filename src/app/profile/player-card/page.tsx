@@ -2,37 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-
-interface PartnerStats {
-  name: string;
-  total: number;
-  winRate: number;
-}
-
-interface Badge {
-  emoji: string;
-  name: string;
-  description: string;
-}
-
-interface Stats {
-  totalMatches: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  currentStreak: number;
-  topPartner: PartnerStats | null;
-  nemesis: PartnerStats | null;
-  title: string;
-  titleEmoji: string;
-  badges: Badge[];
-}
+import Link from 'next/link';
+import { BADGES, TITLES } from '@/lib/badges/definitions';
+import { checkBadges, calculateLeagueTitle } from '@/lib/badges/calculator';
+import { BadgeCheckResult, LeagueTitle } from '@/lib/badges/types';
 
 export default function PlayerCardPage() {
   const [profile, setProfile] = useState<{ full_name: string } | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  
+  // Stats
+  const [totalMatches, setTotalMatches] = useState(0);
+  const [wins, setWins] = useState(0);
+  const [losses, setLosses] = useState(0);
+  const [winRate, setWinRate] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  
+  // Badge & Titoli
+  const [badgeResults, setBadgeResults] = useState<BadgeCheckResult[]>([]);
+  const [dominantTitle, setDominantTitle] = useState<LeagueTitle | null>(null);
+  const [leagueTitles, setLeagueTitles] = useState<LeagueTitle[]>([]);
 
   const supabase = createClient();
 
@@ -44,156 +34,124 @@ export default function PlayerCardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Profilo
     const { data: profileData } = await supabase
       .from('profiles')
       .select('full_name')
       .eq('id', user.id)
       .single();
-
     setProfile(profileData);
 
-    // Carica partite da leghe
+    // Partite da leghe
     const { data: leagueMatches } = await supabase
       .from('matches')
       .select('*')
       .or(`player1_id.eq.${user.id},player2_id.eq.${user.id},player3_id.eq.${user.id},player4_id.eq.${user.id}`)
       .order('played_at', { ascending: false });
 
-    // Carica quick matches
+    // Quick matches
     const { data: quickMatches } = await supabase
       .from('quick_matches')
       .select('*')
       .eq('user_id', user.id)
       .order('played_at', { ascending: false });
 
-    // Calcola stats
-    const allMatches = leagueMatches || [];
-    const allQuickMatches = quickMatches || [];
+    // Leghe create
+    const { count: leaguesCreated } = await supabase
+      .from('leagues')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', user.id);
 
-    let wins = 0;
-    let losses = 0;
-    let currentStreak = 0;
+    // Calcola stats base
+    const allLeagueMatches = leagueMatches || [];
+    const allQuickMatches = quickMatches || [];
+    
+    let w = 0, l = 0, streak = 0;
     let streakCounting = true;
 
-    // Partner tracking
-    const partnerStats: Record<string, { name: string; wins: number; total: number }> = {};
-
     // League matches
-    allMatches.forEach(match => {
+    allLeagueMatches.forEach(match => {
       const inTeam1 = [match.player1_id, match.player2_id].includes(user.id);
       const won = (inTeam1 && match.winner_team === 1) || (!inTeam1 && match.winner_team === 2);
-
+      
       if (won) {
-        wins++;
-        if (streakCounting) currentStreak++;
+        w++;
+        if (streakCounting) streak++;
       } else {
-        losses++;
+        l++;
         streakCounting = false;
-      }
-
-      // Track partner
-      const partnerId = inTeam1
-        ? (match.player1_id === user.id ? match.player2_id : match.player1_id)
-        : (match.player3_id === user.id ? match.player4_id : match.player3_id);
-
-      if (partnerId) {
-        if (!partnerStats[partnerId]) {
-          partnerStats[partnerId] = { name: partnerId, wins: 0, total: 0 };
-        }
-        partnerStats[partnerId].total++;
-        if (won) partnerStats[partnerId].wins++;
       }
     });
 
     // Quick matches
     allQuickMatches.forEach(match => {
-      const won = match.winner_team === 1;
-      if (won) wins++;
-      else losses++;
+      if (match.winner_team === 1) w++;
+      else l++;
     });
 
-    const totalMatches = wins + losses;
-    const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+    const total = w + l;
+    setTotalMatches(total);
+    setWins(w);
+    setLosses(l);
+    setWinRate(total > 0 ? Math.round((w / total) * 100) : 0);
+    setCurrentStreak(streak);
 
-    // Carica nomi partner
-    const partnerIds = Object.keys(partnerStats);
-    const partnerNames: Record<string, string> = {};
-
-    if (partnerIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', partnerIds);
-
-      profiles?.forEach(p => {
-        partnerNames[p.id] = p.full_name?.split(' ')[0] || 'Giocatore';
-      });
-    }
-
-    // Trova top partner e nemesis (minimo 3 partite insieme)
-    const eligiblePartners: PartnerStats[] = [];
+    // === NUOVO SISTEMA BADGE ===
     
-    Object.entries(partnerStats).forEach(([id, pStats]) => {
-      if (pStats.total >= 3) {
-        const wr = Math.round((pStats.wins / pStats.total) * 100);
-        eligiblePartners.push({
-          name: partnerNames[id] || 'Giocatore',
-          total: pStats.total,
-          winRate: wr
-        });
-      }
-    });
-
-    // Sort to find top partner (highest winrate >= 50%) and nemesis (lowest winrate < 40%)
-    const topPartner = eligiblePartners
-      .filter(p => p.winRate >= 50)
-      .sort((a, b) => b.winRate - a.winRate)[0] || null;
+    // Carica membri per lega
+    const leagueIds = [...new Set(allLeagueMatches.map(m => m.league_id).filter(Boolean))];
     
-    const nemesis = eligiblePartners
-      .filter(p => p.winRate < 40)
-      .sort((a, b) => a.winRate - b.winRate)[0] || null;
+    const membersByLeague: Record<string, any[]> = {};
+    const leagueNames: Record<string, string> = {};
 
-    // Calcola titolo
-    let title = 'Rookie';
-    let titleEmoji = '🎾';
+    for (const leagueId of leagueIds) {
+      const { data: members } = await supabase
+        .from('league_members')
+        .select('user_id, points')
+        .eq('league_id', leagueId);
+      
+      const { data: league } = await supabase
+        .from('leagues')
+        .select('name')
+        .eq('id', leagueId)
+        .single();
 
-    if (totalMatches >= 50 && winRate >= 70) {
-      title = 'Leggenda'; titleEmoji = '👑';
-    } else if (totalMatches >= 30 && winRate >= 60) {
-      title = 'Campione'; titleEmoji = '🏆';
-    } else if (currentStreak >= 5) {
-      title = 'Inarrestabile'; titleEmoji = '🔥';
-    } else if (totalMatches >= 20 && winRate >= 55) {
-      title = 'Vincente'; titleEmoji = '💪';
-    } else if (totalMatches >= 20) {
-      title = 'Veterano'; titleEmoji = '⭐';
-    } else if (totalMatches >= 10) {
-      title = 'Giocatore'; titleEmoji = '🎾';
-    } else if (totalMatches >= 5) {
-      title = 'Apprendista'; titleEmoji = '📚';
+      membersByLeague[leagueId] = members || [];
+      leagueNames[leagueId] = league?.name || 'Lega';
     }
 
     // Calcola badge
-    const badges: Badge[] = [];
-    if (totalMatches >= 10) badges.push({ emoji: '🎾', name: 'Debuttante', description: '10 partite' });
-    if (totalMatches >= 25) badges.push({ emoji: '⭐', name: 'Assiduo', description: '25 partite' });
-    if (totalMatches >= 50) badges.push({ emoji: '💎', name: 'Veterano', description: '50 partite' });
-    if (totalMatches >= 100) badges.push({ emoji: '👑', name: 'Leggenda', description: '100 partite' });
-    if (wins >= 5) badges.push({ emoji: '✌️', name: 'Vincitore', description: '5 vittorie' });
-    if (wins >= 20) badges.push({ emoji: '🏆', name: 'Campione', description: '20 vittorie' });
-    if (wins >= 50) badges.push({ emoji: '🥇', name: 'Dominatore', description: '50 vittorie' });
-    if (currentStreak >= 3) badges.push({ emoji: '🔥', name: 'On Fire', description: '3+ streak' });
-    if (currentStreak >= 5) badges.push({ emoji: '💥', name: 'Inarrestabile', description: '5+ streak' });
-    if (topPartner && topPartner.winRate >= 70) badges.push({ emoji: '🤝', name: "Coppia d'Oro", description: '70%+ con partner' });
-    if (winRate >= 60 && totalMatches >= 10) badges.push({ emoji: '📈', name: 'Costante', description: '60%+ winrate' });
+    const allMembers = Object.values(membersByLeague).flat();
+    const badges = checkBadges(allLeagueMatches, user.id, allMembers, leaguesCreated || 0);
+    setBadgeResults(badges);
 
-    setStats({ totalMatches, wins, losses, winRate, currentStreak, topPartner, nemesis, title, titleEmoji, badges });
+    // Calcola titoli per lega
+    const titles: LeagueTitle[] = leagueIds.map(leagueId => 
+      calculateLeagueTitle(
+        allLeagueMatches,
+        user.id,
+        membersByLeague[leagueId] || [],
+        leagueId,
+        leagueNames[leagueId]
+      )
+    );
+    setLeagueTitles(titles);
+
+    // Titolo dominante
+    const activeTitles = titles.filter(t => t.titleKey !== 'novizio');
+    if (activeTitles.length > 0) {
+      setDominantTitle(activeTitles.sort((a, b) => b.score - a.score)[0]);
+    } else if (titles.length > 0) {
+      setDominantTitle(titles[0]);
+    }
+
     setLoading(false);
   };
 
   const handleShare = async () => {
     const name = profile?.full_name?.split(' ')[0] || 'Giocatore';
-    const text = `🎾 ${name} - ${stats?.titleEmoji} ${stats?.title}\n\n📊 ${stats?.totalMatches} partite | ${stats?.winRate}% winrate\n🔥 Streak: ${stats?.currentStreak}\n\nScopri le tue stats su MyPadelog!`;
+    const titleText = dominantTitle ? `${dominantTitle.titleEmoji} ${dominantTitle.titleName}` : '🎾 Giocatore';
+    const text = `🎾 ${name} - ${titleText}\n\n📊 ${totalMatches} partite | ${winRate}% winrate\n🔥 Streak: ${currentStreak}\n\nScopri le tue stats su MyPadelog!`;
 
     if (navigator.share) {
       try {
@@ -217,14 +175,22 @@ export default function PlayerCardPage() {
   }
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Giocatore';
+  const unlockedBadges = badgeResults.filter(b => b.unlocked);
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #111 0%, #1a1a1a 100%)', padding: '24px', paddingBottom: '120px' }}>
+      
+      {/* Back */}
+      <Link href="/profile" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: '14px' }}>
+        ← Profilo
+      </Link>
+
       {/* Card */}
       <div style={{
         background: 'linear-gradient(135deg, #1a1a1a 0%, #252525 100%)',
         borderRadius: '24px',
         padding: '32px 24px',
+        marginTop: '16px',
         border: '1px solid #333',
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
       }}>
@@ -245,26 +211,38 @@ export default function PlayerCardPage() {
           {firstName.charAt(0).toUpperCase()}
         </div>
 
-        {/* Nome e Titolo */}
+        {/* Nome */}
         <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, textAlign: 'center', marginBottom: '4px' }}>
           {firstName}
         </h1>
-        <p style={{ color: '#0E5E4A', fontSize: '16px', fontWeight: 600, textAlign: 'center', marginBottom: '24px' }}>
-          {stats?.titleEmoji} {stats?.title}
-        </p>
+        
+        {/* TITOLO DOMINANTE */}
+        {dominantTitle && (
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <p style={{ fontSize: '20px', marginBottom: '4px' }}>
+              {dominantTitle.titleEmoji}
+            </p>
+            <p style={{ color: '#0E5E4A', fontSize: '18px', fontWeight: 700 }}>
+              {dominantTitle.titleName}
+            </p>
+            <p style={{ color: '#666', fontSize: '12px', marginTop: '4px' }}>
+              {TITLES.find(t => t.key === dominantTitle.titleKey)?.description}
+            </p>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '24px' }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ color: '#fff', fontSize: '28px', fontWeight: 800 }}>{stats?.totalMatches}</p>
+            <p style={{ color: '#fff', fontSize: '28px', fontWeight: 800 }}>{totalMatches}</p>
             <p style={{ color: '#666', fontSize: '12px' }}>Partite</p>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ color: '#0E5E4A', fontSize: '28px', fontWeight: 800 }}>{stats?.winRate}%</p>
+            <p style={{ color: '#0E5E4A', fontSize: '28px', fontWeight: 800 }}>{winRate}%</p>
             <p style={{ color: '#666', fontSize: '12px' }}>Winrate</p>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ color: '#F46A25', fontSize: '28px', fontWeight: 800 }}>{stats?.currentStreak}</p>
+            <p style={{ color: '#F46A25', fontSize: '28px', fontWeight: 800 }}>{currentStreak}</p>
             <p style={{ color: '#666', fontSize: '12px' }}>Streak</p>
           </div>
         </div>
@@ -279,49 +257,63 @@ export default function PlayerCardPage() {
           gap: '24px',
           marginBottom: '24px'
         }}>
-          <p style={{ color: '#22C55E', fontSize: '14px', fontWeight: 600 }}>✓ {stats?.wins} vinte</p>
-          <p style={{ color: '#EF4444', fontSize: '14px', fontWeight: 600 }}>✗ {stats?.losses} perse</p>
+          <p style={{ color: '#22C55E', fontSize: '14px', fontWeight: 600 }}>✓ {wins} vinte</p>
+          <p style={{ color: '#EF4444', fontSize: '14px', fontWeight: 600 }}>✗ {losses} perse</p>
         </div>
 
-        {/* Badges */}
-        {stats?.badges && stats.badges.length > 0 && (
+        {/* BADGE */}
+        {unlockedBadges.length > 0 && (
           <div style={{ marginBottom: '24px' }}>
-            <p style={{ color: '#666', fontSize: '11px', fontWeight: 600, marginBottom: '10px', textAlign: 'center' }}>BADGE</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <p style={{ color: '#666', fontSize: '11px', fontWeight: 600 }}>BADGE</p>
+              <Link href="/profile/badges" style={{ color: '#0E5E4A', fontSize: '11px', fontWeight: 600, textDecoration: 'none' }}>
+                {unlockedBadges.length}/{BADGES.length} →
+              </Link>
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-              {stats.badges.slice(0, 6).map((badge, i) => (
-                <div key={i} style={{
-                  background: '#252525',
-                  borderRadius: '20px',
-                  padding: '6px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
+              {unlockedBadges.slice(0, 6).map(result => {
+                const badge = BADGES.find(b => b.key === result.key);
+                if (!badge) return null;
+                return (
+                  <div key={badge.key} style={{
+                    background: '#252525',
+                    borderRadius: '20px',
+                    padding: '6px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span>{badge.emoji}</span>
+                    <span style={{ color: '#fff', fontSize: '12px', fontWeight: 500 }}>{badge.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Titoli per lega (se più di una) */}
+        {leagueTitles.length > 1 && (
+          <div style={{ marginBottom: '24px' }}>
+            <p style={{ color: '#666', fontSize: '11px', fontWeight: 600, marginBottom: '10px', textAlign: 'center' }}>
+              I TUOI TITOLI
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+              {leagueTitles.map(lt => (
+                <div key={lt.leagueId} style={{
+                  background: lt.leagueId === dominantTitle?.leagueId ? '#0E5E4A20' : '#252525',
+                  border: lt.leagueId === dominantTitle?.leagueId ? '1px solid #0E5E4A' : '1px solid transparent',
+                  borderRadius: '12px',
+                  padding: '8px 12px',
+                  textAlign: 'center'
                 }}>
-                  <span>{badge.emoji}</span>
-                  <span style={{ color: '#fff', fontSize: '12px', fontWeight: 500 }}>{badge.name}</span>
+                  <span style={{ fontSize: '20px' }}>{lt.titleEmoji}</span>
+                  <p style={{ color: '#fff', fontSize: '11px', fontWeight: 600, marginTop: '2px' }}>{lt.leagueName}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Top Partner & Nemesis */}
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-          {stats?.topPartner && (
-            <div style={{ flex: 1, background: '#0E5E4A20', borderRadius: '12px', padding: '12px', border: '1px solid #0E5E4A40' }}>
-              <p style={{ color: '#0E5E4A', fontSize: '10px', fontWeight: 600, marginBottom: '4px' }}>🤝 TOP PARTNER</p>
-              <p style={{ color: '#fff', fontSize: '14px', fontWeight: 600 }}>{stats.topPartner.name}</p>
-              <p style={{ color: '#666', fontSize: '11px' }}>{stats.topPartner.winRate}% insieme</p>
-            </div>
-          )}
-          {stats?.nemesis && (
-            <div style={{ flex: 1, background: '#EF444420', borderRadius: '12px', padding: '12px', border: '1px solid #EF444440' }}>
-              <p style={{ color: '#EF4444', fontSize: '10px', fontWeight: 600, marginBottom: '4px' }}>⚔️ NEMESI</p>
-              <p style={{ color: '#fff', fontSize: '14px', fontWeight: 600 }}>{stats.nemesis.name}</p>
-              <p style={{ color: '#666', fontSize: '11px' }}>{stats.nemesis.winRate}% vs</p>
-            </div>
-          )}
-        </div>
 
         {/* Branding */}
         <p style={{ color: '#444', fontSize: '11px', textAlign: 'center' }}>MyPadelog • Allenamenti & Partite</p>
@@ -346,9 +338,12 @@ export default function PlayerCardPage() {
         {copied ? '✓ Copiato!' : '📤 Condividi la tua Card'}
       </button>
 
-      <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>
-        Fai screenshot e posta nelle Stories! 📸
-      </p>
+      {/* Link a guida badge */}
+      <Link href="/profile/badges" style={{ textDecoration: 'none' }}>
+        <p style={{ color: '#666', fontSize: '14px', textAlign: 'center', marginTop: '16px' }}>
+          📖 Scopri tutti i badge e titoli →
+        </p>
+      </Link>
     </div>
   );
 }

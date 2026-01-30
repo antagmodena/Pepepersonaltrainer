@@ -17,19 +17,25 @@ export default function BottomNav() {
   const currentLeagueId = leagueMatch ? leagueMatch[1] : null;
 
   const handleQuickAdd = () => {
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(15);
+    }
+    
     if (currentLeagueId && currentLeagueId !== 'new') {
       router.push(`/leagues/${currentLeagueId}/match/new`);
     } else {
-      router.push('/leagues');
+      router.push('/quick-match');
     }
   };
 
-  const primary = '#0E5E4A';
+  const bluePadel = '#1A8CD8';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white z-50" style={{ 
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      borderTop: '1px solid #E5E5E5'
+      borderTop: '1px solid #E5E5E5',
+      boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
     }}>
       <div className="max-w-lg mx-auto flex justify-around items-center h-16 relative">
         
@@ -37,7 +43,7 @@ export default function BottomNav() {
         <Link
           href="/dashboard"
           className="flex flex-col items-center justify-center flex-1 h-full relative transition-colors"
-          style={{ color: isActive('/dashboard') ? primary : '#999' }}
+          style={{ color: isActive('/dashboard') ? bluePadel : '#999' }}
         >
           <svg className="w-6 h-6" fill={isActive('/dashboard') ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isActive('/dashboard') ? 0 : 1.5}>
             {isActive('/dashboard') ? (
@@ -53,7 +59,7 @@ export default function BottomNav() {
         <Link
           href="/leagues"
           className="flex flex-col items-center justify-center flex-1 h-full relative transition-colors"
-          style={{ color: isActive('/leagues') ? primary : '#999' }}
+          style={{ color: isActive('/leagues') ? bluePadel : '#999' }}
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isActive('/leagues') ? 2 : 1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -65,10 +71,10 @@ export default function BottomNav() {
         <div className="flex flex-col items-center justify-center flex-1 h-full">
           <button
             onClick={handleQuickAdd}
-            className="w-14 h-14 -mt-5 rounded-full flex items-center justify-center transition-transform active:scale-95"
+            className="w-14 h-14 -mt-5 rounded-full flex items-center justify-center transition-all active:scale-95"
             style={{
-              background: primary,
-              boxShadow: '0 4px 20px rgba(14, 94, 74, 0.4)'
+              background: bluePadel,
+              boxShadow: '0 6px 20px rgba(26, 140, 216, 0.4)'
             }}
           >
             <span className="text-white text-3xl font-light">+</span>
@@ -79,7 +85,7 @@ export default function BottomNav() {
         <Link
           href="/calendar"
           className="flex flex-col items-center justify-center flex-1 h-full relative transition-colors"
-          style={{ color: isActive('/calendar') ? primary : '#999' }}
+          style={{ color: isActive('/calendar') ? bluePadel : '#999' }}
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isActive('/calendar') ? 2 : 1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -91,7 +97,7 @@ export default function BottomNav() {
         <Link
           href="/profile"
           className="flex flex-col items-center justify-center flex-1 h-full relative transition-colors"
-          style={{ color: isActive('/profile') ? primary : '#999' }}
+          style={{ color: isActive('/profile') ? bluePadel : '#999' }}
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isActive('/profile') ? 2 : 1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

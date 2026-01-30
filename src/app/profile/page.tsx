@@ -62,7 +62,7 @@ export default async function ProfilePage() {
             background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)',
             borderRadius: '20px',
             padding: '20px',
-            marginBottom: '16px',
+            marginBottom: '12px',
             display: 'flex',
             alignItems: 'center',
             gap: '16px'
@@ -81,9 +81,41 @@ export default async function ProfilePage() {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ color: '#fff', fontSize: '17px', fontWeight: 700 }}>La tua Player Card</p>
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Stats, badge e titolo • Condividila!</p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Stats, titolo e badge • Condividila!</p>
             </div>
             <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '20px' }}>→</span>
+          </div>
+        </Link>
+
+        {/* BADGE & TITOLI */}
+        <Link href="/profile/badges" style={{ textDecoration: 'none' }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            border: '2px solid #F5F5F3'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              background: '#FEF3C7',
+              borderRadius: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px'
+            }}>
+              🎖️
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: '#111', fontSize: '17px', fontWeight: 700 }}>Badge & Titoli</p>
+              <p style={{ color: '#666', fontSize: '13px' }}>Scopri come sbloccarli tutti</p>
+            </div>
+            <span style={{ color: '#CCC', fontSize: '20px' }}>→</span>
           </div>
         </Link>
 
