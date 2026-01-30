@@ -18,9 +18,11 @@ interface Member {
 export default function NewMatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = use(params);
   const [members, setMembers] = useState<Member[]>([]);
+  const [recentLocations, setRecentLocations] = useState<string[]>([]);
   const [currentUserId, setCurrentUserId] = useState('');
   const [team1, setTeam1] = useState<string[]>([]);
   const [team2, setTeam2] = useState<string[]>([]);
+  const [location, setLocation] = useState('');
   const [scores, setScores] = useState([
     { team1: 0, team2: 0 },
     { team1: 0, team2: 0 },
@@ -40,7 +42,7 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     setCurrentUserId(user.id);
-    setTeam1([user.id]); // Tu già selezionato!
+    setTeam1([user.id]);
 
     // Carica membri
     const { data: membersData } = await supabase
@@ -48,13 +50,13 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
       .select('user_id, handicap, points, wins, losses, profile:profiles(full_name)')
       .eq('league_id', leagueId);
 
-    // Carica partite per ordinare per frequenza
+    // Carica partite per frequenza
     const { data: matchesData } = await supabase
       .from('matches')
-      .select('player1_id, player2_id, player3_id, player4_id')
+      .select('player1_id, player2_id, player3_id, player4_id, location')
       .eq('league_id', leagueId);
 
-    // Conta quante volte hai giocato con ciascuno
+    // Conta frequenza giocatori
     const playCount: Record<string, number> = {};
     (matchesData || []).forEach(m => {
       const players = [m.player1_id, m.player2_id, m.player3_id, m.player4_id];
@@ -67,7 +69,15 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
       }
     });
 
-    // Formatta e ordina per frequenza
+    // Luoghi recenti
+    const locations = [...new Set(
+      (matchesData || [])
+        .map(m => m.location)
+        .filter(Boolean)
+    )].slice(0, 5);
+    setRecentLocations(locations as string[]);
+
+    // Formatta e ordina membri
     const formatted = (membersData || []).map((d: any) => ({
       user_id: d.user_id,
       handicap: d.handicap,
@@ -85,7 +95,7 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
   const togglePlayer = (playerId: string, team: 'team1' | 'team2') => {
     if (team === 'team1') {
       if (team1.includes(playerId)) {
-        if (playerId !== currentUserId) { // Non puoi togliere te stesso
+        if (playerId !== currentUserId) {
           setTeam1(team1.filter(id => id !== playerId));
         }
       } else if (team1.length < 2 && !team2.includes(playerId)) {
@@ -109,10 +119,6 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
       }
       return newScores;
     });
-  };
-
-  const getScoreString = (team: 'team1' | 'team2') => {
-    return scores.slice(0, sets).map(s => s[team]).join('-');
   };
 
   const getWinner = () => {
@@ -155,16 +161,15 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
         pointsWinner = 2;
         pointsLoser = 1;
       } else {
-        pointsWinner = 5; // Giant killer bonus!
+        pointsWinner = 5;
         pointsLoser = 1;
       }
     }
 
-    // Crea stringhe punteggio
     const score1 = scores.slice(0, sets).map(s => `${s.team1}-${s.team2}`).join(' ');
     const score2 = scores.slice(0, sets).map(s => `${s.team2}-${s.team1}`).join(' ');
 
-    // Registra partita
+    // Registra partita con location
     const { error } = await supabase.from('matches').insert({
       league_id: leagueId,
       player1_id: team1[0],
@@ -174,6 +179,7 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
       score_team1: score1,
       score_team2: score2,
       winner_team: winner,
+      location: location || null,
       registered_by: user.id
     });
 
@@ -225,8 +231,8 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}>
-        <p style={{ color: '#94A3B8' }}>Caricamento...</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7' }}>
+        <p style={{ color: '#999' }}>Caricamento...</p>
       </div>
     );
   }
@@ -237,12 +243,12 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
+      background: '#FAFAF7',
       paddingBottom: '120px'
     }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+        background: 'linear-gradient(135deg, #1A8CD8 0%, #1565C0 100%)',
         padding: '48px 24px 32px',
         borderRadius: '0 0 32px 32px',
         marginBottom: '24px'
@@ -251,7 +257,7 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           ← Annulla
         </Link>
         <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 800, marginTop: '8px' }}>
-          🎾 Nuova Partita
+          🎾 Registra Partita
         </h1>
         
         {/* Progress */}
@@ -276,14 +282,13 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           <div style={{
             background: '#fff',
             borderRadius: '20px',
-            padding: '20px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+            padding: '20px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
               <div style={{
                 width: '48px',
                 height: '48px',
-                background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                background: '#1A8CD8',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
@@ -295,12 +300,12 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
                 {getName(currentUserId).charAt(0)}
               </div>
               <div>
-                <p style={{ fontWeight: 700, color: '#1a1a2e' }}>Tu</p>
-                <p style={{ fontSize: '12px', color: '#22C55E' }}>✓ Già in squadra</p>
+                <p style={{ fontWeight: 700, color: '#111' }}>Tu</p>
+                <p style={{ fontSize: '12px', color: '#1A8CD8' }}>✓ Già in squadra</p>
               </div>
             </div>
 
-            <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '12px' }}>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
               Chi gioca con te?
             </p>
 
@@ -317,13 +322,12 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
                       padding: '12px 20px',
                       borderRadius: '50px',
                       border: 'none',
-                      background: isSelected ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)' : isInTeam2 ? '#E2E8F0' : '#F1F5F9',
-                      color: isSelected ? '#fff' : isInTeam2 ? '#94A3B8' : '#1a1a2e',
+                      background: isSelected ? '#1A8CD8' : isInTeam2 ? '#E5E5E5' : '#F5F5F3',
+                      color: isSelected ? '#fff' : isInTeam2 ? '#999' : '#111',
                       fontSize: '15px',
                       fontWeight: 600,
                       cursor: isInTeam2 ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s',
-                      boxShadow: isSelected ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+                      boxShadow: isSelected ? '0 4px 12px rgba(26, 140, 216, 0.3)' : 'none'
                     }}
                   >
                     {m.profile?.full_name?.split(' ')[0] || 'Giocatore'}
@@ -341,11 +345,11 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
               <div style={{
                 marginTop: '20px',
                 padding: '16px',
-                background: '#EFF6FF',
+                background: '#E8F4FC',
                 borderRadius: '12px',
                 textAlign: 'center'
               }}>
-                <p style={{ fontSize: '15px', color: '#1D4ED8', fontWeight: 600 }}>
+                <p style={{ fontSize: '15px', color: '#1A8CD8', fontWeight: 600 }}>
                   🤝 Tu + {getName(team1[1])}
                 </p>
               </div>
@@ -358,23 +362,22 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           <div style={{
             background: '#fff',
             borderRadius: '20px',
-            padding: '20px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+            padding: '20px'
           }}>
             <div style={{
               marginBottom: '20px',
               padding: '16px',
-              background: '#EFF6FF',
+              background: '#E8F4FC',
               borderRadius: '12px',
               textAlign: 'center'
             }}>
-              <p style={{ fontSize: '13px', color: '#64748B' }}>La tua coppia</p>
-              <p style={{ fontSize: '17px', color: '#1D4ED8', fontWeight: 700 }}>
+              <p style={{ fontSize: '13px', color: '#666' }}>La tua coppia</p>
+              <p style={{ fontSize: '17px', color: '#1A8CD8', fontWeight: 700 }}>
                 🔵 {getName(team1[0])} + {getName(team1[1])}
               </p>
             </div>
 
-            <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '12px' }}>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
               Chi avete sfidato?
             </p>
 
@@ -391,12 +394,11 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
                       padding: '12px 20px',
                       borderRadius: '50px',
                       border: 'none',
-                      background: isSelected ? 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' : isInTeam1 ? '#E2E8F0' : '#F1F5F9',
-                      color: isSelected ? '#fff' : isInTeam1 ? '#94A3B8' : '#1a1a2e',
+                      background: isSelected ? '#EF4444' : isInTeam1 ? '#E5E5E5' : '#F5F5F3',
+                      color: isSelected ? '#fff' : isInTeam1 ? '#999' : '#111',
                       fontSize: '15px',
                       fontWeight: 600,
                       cursor: isInTeam1 ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s',
                       boxShadow: isSelected ? '0 4px 12px rgba(239, 68, 68, 0.3)' : 'none'
                     }}
                   >
@@ -410,7 +412,7 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
               <div style={{
                 marginTop: '20px',
                 padding: '16px',
-                background: '#FEF2F2',
+                background: '#FEE2E2',
                 borderRadius: '12px',
                 textAlign: 'center'
               }}>
@@ -422,178 +424,231 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
           </div>
         )}
 
-        {/* STEP 3: Score */}
+        {/* STEP 3: Score + Location */}
         {step === 3 && (
-          <div style={{
-            background: '#fff',
-            borderRadius: '20px',
-            padding: '20px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
-          }}>
-            {/* Teams recap */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>🔵 NOI</p>
-                <p style={{ fontSize: '15px', fontWeight: 700, color: '#1D4ED8' }}>
-                  {getName(team1[0])}<br/>{getName(team1[1])}
-                </p>
-              </div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: '#94A3B8', alignSelf: 'center' }}>VS</div>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px' }}>🔴 LORO</p>
-                <p style={{ fontSize: '15px', fontWeight: 700, color: '#DC2626' }}>
-                  {getName(team2[0])}<br/>{getName(team2[1])}
-                </p>
-              </div>
-            </div>
-
-            {/* Set selector */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
-              {[2, 3].map(n => (
-                <button
-                  key={n}
-                  onClick={() => setSets(n)}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: '20px',
-                    border: 'none',
-                    background: sets === n ? '#1a1a2e' : '#F1F5F9',
-                    color: sets === n ? '#fff' : '#64748B',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {n} set
-                </button>
-              ))}
-            </div>
-
-            {/* Score inputs */}
-            {scores.slice(0, sets).map((score, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                marginBottom: '16px',
-                padding: '16px',
-                background: '#F8FAFC',
-                borderRadius: '16px'
-              }}>
-                <p style={{ fontSize: '13px', color: '#64748B', width: '50px' }}>Set {i + 1}</p>
-                
-                {/* Team 1 score */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    onClick={() => updateScore(i, 'team1', -1)}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: '#E2E8F0',
-                      fontSize: '20px',
-                      cursor: 'pointer',
-                      color: '#64748B'
-                    }}
-                  >−</button>
-                  <span style={{
-                    width: '44px',
-                    height: '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#3B82F6',
-                    color: '#fff',
-                    borderRadius: '12px',
-                    fontSize: '20px',
-                    fontWeight: 700
-                  }}>{score.team1}</span>
-                  <button
-                    onClick={() => updateScore(i, 'team1', 1)}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: '#3B82F6',
-                      fontSize: '20px',
-                      cursor: 'pointer',
-                      color: '#fff'
-                    }}
-                  >+</button>
+          <>
+            <div style={{
+              background: '#fff',
+              borderRadius: '20px',
+              padding: '20px',
+              marginBottom: '16px'
+            }}>
+              {/* Teams recap */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>🔵 NOI</p>
+                  <p style={{ fontSize: '15px', fontWeight: 700, color: '#1A8CD8' }}>
+                    {getName(team1[0])}<br/>{getName(team1[1])}
+                  </p>
                 </div>
-
-                <span style={{ fontSize: '20px', fontWeight: 700, color: '#94A3B8' }}>-</span>
-
-                {/* Team 2 score */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    onClick={() => updateScore(i, 'team2', -1)}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: '#E2E8F0',
-                      fontSize: '20px',
-                      cursor: 'pointer',
-                      color: '#64748B'
-                    }}
-                  >−</button>
-                  <span style={{
-                    width: '44px',
-                    height: '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#EF4444',
-                    color: '#fff',
-                    borderRadius: '12px',
-                    fontSize: '20px',
-                    fontWeight: 700
-                  }}>{score.team2}</span>
-                  <button
-                    onClick={() => updateScore(i, 'team2', 1)}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: '#EF4444',
-                      fontSize: '20px',
-                      cursor: 'pointer',
-                      color: '#fff'
-                    }}
-                  >+</button>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#999', alignSelf: 'center' }}>VS</div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>🔴 LORO</p>
+                  <p style={{ fontSize: '15px', fontWeight: 700, color: '#EF4444' }}>
+                    {getName(team2[0])}<br/>{getName(team2[1])}
+                  </p>
                 </div>
               </div>
-            ))}
 
-            {/* Winner preview */}
-            {getWinner() !== 0 && (
-              <div style={{
-                marginTop: '16px',
-                padding: '16px',
-                background: getWinner() === 1 ? '#EFF6FF' : '#FEF2F2',
-                borderRadius: '12px',
-                textAlign: 'center'
-              }}>
-                <p style={{ fontSize: '13px', color: '#64748B' }}>Vincitore</p>
-                <p style={{ 
-                  fontSize: '18px', 
-                  fontWeight: 700, 
-                  color: getWinner() === 1 ? '#1D4ED8' : '#DC2626',
-                  marginTop: '4px'
+              {/* Set selector */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
+                {[2, 3].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setSets(n)}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      background: sets === n ? '#111' : '#F5F5F3',
+                      color: sets === n ? '#fff' : '#666',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {n} set
+                  </button>
+                ))}
+              </div>
+
+              {/* Score inputs */}
+              {scores.slice(0, sets).map((score, i) => (
+                <div key={i} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  marginBottom: '16px',
+                  padding: '16px',
+                  background: '#F5F5F3',
+                  borderRadius: '16px'
                 }}>
-                  {getWinner() === 1 ? '🏆 ' : ''}
-                  {getWinner() === 1 ? `${getName(team1[0])} + ${getName(team1[1])}` : `${getName(team2[0])} + ${getName(team2[1])}`}
-                  {getWinner() === 2 ? ' 🏆' : ''}
-                </p>
-              </div>
-            )}
-          </div>
+                  <p style={{ fontSize: '13px', color: '#666', width: '50px' }}>Set {i + 1}</p>
+                  
+                  {/* Team 1 score */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      onClick={() => updateScore(i, 'team1', -1)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: '#E5E5E5',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        color: '#666'
+                      }}
+                    >−</button>
+                    <span style={{
+                      width: '44px',
+                      height: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#1A8CD8',
+                      color: '#fff',
+                      borderRadius: '12px',
+                      fontSize: '20px',
+                      fontWeight: 700
+                    }}>{score.team1}</span>
+                    <button
+                      onClick={() => updateScore(i, 'team1', 1)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: '#1A8CD8',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        color: '#fff'
+                      }}
+                    >+</button>
+                  </div>
+
+                  <span style={{ fontSize: '20px', fontWeight: 700, color: '#999' }}>-</span>
+
+                  {/* Team 2 score */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      onClick={() => updateScore(i, 'team2', -1)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: '#E5E5E5',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        color: '#666'
+                      }}
+                    >−</button>
+                    <span style={{
+                      width: '44px',
+                      height: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#EF4444',
+                      color: '#fff',
+                      borderRadius: '12px',
+                      fontSize: '20px',
+                      fontWeight: 700
+                    }}>{score.team2}</span>
+                    <button
+                      onClick={() => updateScore(i, 'team2', 1)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: '#EF4444',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        color: '#fff'
+                      }}
+                    >+</button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Winner preview */}
+              {getWinner() !== 0 && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  background: getWinner() === 1 ? '#E8F4FC' : '#FEE2E2',
+                  borderRadius: '12px',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ fontSize: '13px', color: '#666' }}>Vincitore</p>
+                  <p style={{ 
+                    fontSize: '18px', 
+                    fontWeight: 700, 
+                    color: getWinner() === 1 ? '#1A8CD8' : '#EF4444',
+                    marginTop: '4px'
+                  }}>
+                    🏆 {getWinner() === 1 ? `${getName(team1[0])} + ${getName(team1[1])}` : `${getName(team2[0])} + ${getName(team2[1])}`}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Location (opzionale) */}
+            <div style={{
+              background: '#fff',
+              borderRadius: '20px',
+              padding: '20px'
+            }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#111', marginBottom: '12px' }}>
+                📍 Dove avete giocato? <span style={{ color: '#999', fontWeight: 400 }}>(opzionale)</span>
+              </h3>
+              
+              {/* Luoghi recenti */}
+              {recentLocations.length > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {recentLocations.map((loc, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setLocation(loc)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '20px',
+                          border: location === loc ? '2px solid #1A8CD8' : '2px solid #E5E5E5',
+                          background: location === loc ? '#E8F4FC' : '#fff',
+                          color: location === loc ? '#1A8CD8' : '#666',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Es: Padel Club Bologna"
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  fontSize: '15px',
+                  border: '2px solid #E5E5E5',
+                  borderRadius: '12px',
+                  background: '#fff',
+                  outline: 'none'
+                }}
+              />
+            </div>
+          </>
         )}
       </div>
 
@@ -605,7 +660,7 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
         right: 0,
         padding: '16px 20px',
         paddingBottom: '32px',
-        background: 'linear-gradient(180deg, rgba(248,250,252,0) 0%, #F8FAFC 20%)',
+        background: 'linear-gradient(180deg, rgba(250,250,247,0) 0%, #FAFAF7 20%)',
         display: 'flex',
         gap: '12px'
       }}>
@@ -616,11 +671,11 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
               flex: 1,
               padding: '16px',
               background: '#fff',
-              border: '2px solid #E2E8F0',
+              border: '2px solid #E5E5E5',
               borderRadius: '14px',
               fontSize: '16px',
               fontWeight: 600,
-              color: '#64748B',
+              color: '#666',
               cursor: 'pointer'
             }}
           >
@@ -635,14 +690,14 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
             style={{
               flex: 2,
               padding: '16px',
-              background: canProceed ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' : '#E2E8F0',
+              background: canProceed ? '#1A8CD8' : '#E5E5E5',
               border: 'none',
               borderRadius: '14px',
               fontSize: '16px',
               fontWeight: 700,
-              color: canProceed ? '#fff' : '#94A3B8',
+              color: canProceed ? '#fff' : '#999',
               cursor: canProceed ? 'pointer' : 'not-allowed',
-              boxShadow: canProceed ? '0 8px 32px rgba(245, 158, 11, 0.3)' : 'none'
+              boxShadow: canProceed ? '0 8px 24px rgba(26, 140, 216, 0.35)' : 'none'
             }}
           >
             Avanti →
@@ -654,14 +709,14 @@ export default function NewMatchPage({ params }: { params: Promise<{ id: string 
             style={{
               flex: 2,
               padding: '16px',
-              background: canProceed ? 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)' : '#E2E8F0',
+              background: canProceed ? '#22C55E' : '#E5E5E5',
               border: 'none',
               borderRadius: '14px',
               fontSize: '16px',
               fontWeight: 700,
-              color: canProceed ? '#fff' : '#94A3B8',
+              color: canProceed ? '#fff' : '#999',
               cursor: canProceed ? 'pointer' : 'not-allowed',
-              boxShadow: canProceed ? '0 8px 32px rgba(34, 197, 94, 0.3)' : 'none'
+              boxShadow: canProceed ? '0 8px 24px rgba(34, 197, 94, 0.35)' : 'none'
             }}
           >
             {saving ? 'Salvo...' : '✓ Registra'}
