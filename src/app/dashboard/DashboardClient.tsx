@@ -148,7 +148,7 @@ export default function DashboardClient({
   primaryLeagueId,
 }: Props) {
 
-  // === LOGICA CTA DINAMICA ===
+  // === LOGICA CTA CONTESTUALE ===
   
   // Caso 1: Hai già registrato oggi → mostra risultato, no CTA
   const alreadyPlayedToday = matchToday !== null;
@@ -156,10 +156,10 @@ export default function DashboardClient({
   // Caso 2: Evento passato oggi, non ancora registrato → "Com'è andata?"
   const hasPastEvent = pastEventToday !== null && !alreadyPlayedToday;
   
-  // Determina CTA
-  let ctaText = 'Registra Partita';
-  let ctaIcon = '🎾';
-  let ctaHref = primaryLeagueId ? `/leagues/${primaryLeagueId}/match/new` : '/quick-match';
+  // CTA solo se evento passato
+  let ctaHref = '';
+  let ctaText = '';
+  let ctaIcon = '';
   
   if (hasPastEvent) {
     const eventTime = pastEventToday.event_time?.slice(0, 5) || '';
@@ -281,8 +281,8 @@ export default function DashboardClient({
           </Card>
         )}
 
-        {/* === CTA PRINCIPALE (nascosta se già giocato oggi) === */}
-        {!alreadyPlayedToday && (
+        {/* === CTA CONTESTUALE (solo se evento passato) === */}
+        {hasPastEvent && (
           <div style={{ marginBottom: '24px' }}>
             <ActionButton href={ctaHref} icon={ctaIcon} variant="primary" size="large">
               {ctaText}
