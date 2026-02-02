@@ -226,12 +226,12 @@ export default function BottomNav() {
         </div>
       </nav>
 
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes menuSlideUp {
           from { opacity: 0; transform: translateX(-50%) translateY(20px); }
           to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
-      `}</style>
+      ` }} />
     </>
   );
 }
