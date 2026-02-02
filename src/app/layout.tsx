@@ -29,9 +29,10 @@ export default function RootLayout({
   return (
     <html lang="it">
       <head>
-        <link rel="apple-touch-icon" href="/icon.svg" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: `if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/sw.js"); }` }} />
         <main className="min-h-screen pb-nav">
           {children}
         </main>
