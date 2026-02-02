@@ -327,7 +327,7 @@ export default function DashboardClient({
           </ActionButton>
 
           <ActionButton variant="secondary" size="medium" fullWidth onClick={() => {
-            const text = encodeURIComponent("🎾 Gioca a padel con me! Scarica Pepe Padel Trainer e unisciti alla mia lega!\nhttps://pepepadeltrainer.vercel.app");
+            const url = window.location.origin; const text = encodeURIComponent("🎾 Unisciti a MyPadelog!\n\nOrganizza partite, traccia risultati e sfidati con gli amici a padel.\n\nRegistrati gratis 👇\n" + url);
             window.open(`https://wa.me/?text=${text}`, "_blank");
           }}>
             <div style={{ textAlign: "center" }}>

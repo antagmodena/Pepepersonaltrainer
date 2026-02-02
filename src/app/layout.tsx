@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export const metadata: Metadata = {
   title: "MyPadelog – Allenamenti & Partite",
@@ -37,6 +38,7 @@ export default function RootLayout({
           {children}
         </main>
         <BottomNav />
+        <InstallPrompt />
       </body>
     </html>
   );

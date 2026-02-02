@@ -110,7 +110,7 @@ export default function InstallPrompt() {
             </div>
             <button
               onClick={() => {
-                navigator.clipboard.writeText('https://pepepersonaltrainer.vercel.app');
+                navigator.clipboard.writeText(window.location.origin);
                 alert('Link copiato! Ora apri Safari e incollalo');
               }}
               className="w-full btn-primary mt-6"
