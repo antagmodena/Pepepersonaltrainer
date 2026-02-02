@@ -314,7 +314,7 @@ function QuickMatchContent() {
           ← Home
         </Link>
         <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginTop: '8px' }}>
-          ⚡ Partita Veloce
+          📊 Registra Risultato
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginTop: '4px' }}>
           Registra il risultato

@@ -308,7 +308,7 @@ export default function DashboardClient({
           <ActionButton href="/organize" variant="secondary" size="medium" fullWidth>
             <div style={{ textAlign: 'center' }}>
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>🎾</span>
-              <span style={{ fontSize: '12px', color: colors.gray }}>Organizza</span>
+              <span style={{ fontSize: '12px', color: colors.gray }}>Organizza partita</span>
             </div>
           </ActionButton>
           
