@@ -304,7 +304,7 @@ export default function DashboardClient({
         )}
 
         {/* QUICK ACTIONS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '24px' }}>
           <ActionButton href="/organize" variant="secondary" size="medium" fullWidth>
             <div style={{ textAlign: 'center' }}>
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>🎾</span>
@@ -323,6 +323,16 @@ export default function DashboardClient({
             <div style={{ textAlign: 'center' }}>
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>👥</span>
               <span style={{ fontSize: '12px', color: colors.gray }}>Compagni</span>
+            </div>
+          </ActionButton>
+
+          <ActionButton variant="secondary" size="medium" fullWidth onClick={() => {
+            const text = encodeURIComponent("🎾 Gioca a padel con me! Scarica Pepe Padel Trainer e unisciti alla mia lega!\nhttps://pepepadeltrainer.vercel.app");
+            window.open(`https://wa.me/?text=${text}`, "_blank");
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <span style={{ fontSize: "24px", display: "block", marginBottom: "4px" }}>📨</span>
+              <span style={{ fontSize: "12px", color: colors.gray }}>Invita</span>
             </div>
           </ActionButton>
         </div>

@@ -30,6 +30,8 @@ function QuickMatchContent() {
   const [sets, setSets] = useState(2);
   const [location, setLocation] = useState('');
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
+  const [userLeagues, setUserLeagues] = useState<{id: string; name: string}[]>([]);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -95,7 +97,16 @@ function QuickMatchContent() {
     const allIds = [...new Set([...allMemberIds, ...matchPlayerIds])];
     
     if (allIds.length === 0) {
-      setLoadingCompanions(false);
+      // Load user leagues
+    if (leagueIds.length > 0) {
+      const { data: leagueData } = await supabase
+        .from('leagues')
+        .select('id, name')
+        .in('id', leagueIds);
+      setUserLeagues(leagueData || []);
+    }
+
+    setLoadingCompanions(false);
       return;
     }
 
@@ -160,7 +171,8 @@ function QuickMatchContent() {
       score_team2: scoreTeam2,
       winner_team: calculatedWinner,
       location: location || null,
-      played_at: new Date().toISOString()
+      played_at: new Date().toISOString(),
+      league_id: selectedLeagueId || null
     });
 
     setSaving(false);
@@ -175,7 +187,9 @@ function QuickMatchContent() {
     const result = winner === 1 ? '🏆 Vittoria!' : '😤 Prossima volta!';
     const locationText = location ? `\n📍 ${location}` : '';
     
-    const text = `🎾 Partita di Padel!\n\n${myTeam} vs ${theirTeam}\n📊 ${scoreText}\n${result}${locationText}`;
+    const leagueName = selectedLeagueId ? userLeagues.find(l => l.id === selectedLeagueId)?.name : null;
+    const leagueText = leagueName ? '\n🏆 ' + leagueName : '';
+    const text = `🎾 Partita di Padel!\n\n${myTeam} vs ${theirTeam}\n📊 ${scoreText}\n${result}${locationText}${leagueText}`;
     const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
     window.open(waUrl, '_blank');
   };
@@ -269,6 +283,7 @@ function QuickMatchContent() {
             setOpponent2('');
             setScore({ team1: [0, 0, 0], team2: [0, 0, 0] });
             setLocation('');
+            setSelectedLeagueId(null);
           }}
           style={{
             padding: '14px 40px',
@@ -302,7 +317,7 @@ function QuickMatchContent() {
           ⚡ Partita Veloce
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginTop: '4px' }}>
-          Registra senza lega
+          Registra il risultato
         </p>
       </div>
 
@@ -310,6 +325,55 @@ function QuickMatchContent() {
         {/* Step 1: Giocatori */}
         {step === 1 && (
           <div style={{ background: '#fff', borderRadius: '20px', padding: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '13px', fontWeight: 600, color: '#666', marginBottom: '10px' }}>🏆 TIPO DI PARTITA</p>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: selectedLeagueId !== null && userLeagues.length > 0 ? '12px' : '0' }}>
+                <button
+                  onClick={() => setSelectedLeagueId(null)}
+                  style={{
+                    flex: 1, padding: '14px', border: 'none', borderRadius: '12px',
+                    background: selectedLeagueId === null ? '#1A8CD8' : '#F5F5F3',
+                    color: selectedLeagueId === null ? '#fff' : '#666',
+                    fontWeight: 700, fontSize: '14px', cursor: 'pointer'
+                  }}
+                >
+                  ⚡ Libera
+                </button>
+                <button
+                  onClick={() => { if (userLeagues.length > 0) setSelectedLeagueId(userLeagues[0].id); }}
+                  style={{
+                    flex: 1, padding: '14px', border: 'none', borderRadius: '12px',
+                    background: selectedLeagueId !== null ? '#1A8CD8' : '#F5F5F3',
+                    color: selectedLeagueId !== null ? '#fff' : '#666',
+                    fontWeight: 700, fontSize: '14px',
+                    cursor: userLeagues.length > 0 ? 'pointer' : 'not-allowed',
+                    opacity: userLeagues.length > 0 ? 1 : 0.5
+                  }}
+                >
+                  🏆 Di lega
+                </button>
+              </div>
+              {selectedLeagueId !== null && userLeagues.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {userLeagues.map(l => (
+                    <button
+                      key={l.id}
+                      onClick={() => setSelectedLeagueId(l.id)}
+                      style={{
+                        padding: '10px 16px', borderRadius: '20px',
+                        background: selectedLeagueId === l.id ? '#E8F4FC' : '#F5F5F3',
+                        border: selectedLeagueId === l.id ? '2px solid #1A8CD8' : '2px solid transparent',
+                        color: selectedLeagueId === l.id ? '#1A8CD8' : '#666',
+                        fontSize: '13px', fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#111', marginBottom: '20px' }}>
               Chi ha giocato?
             </h2>
