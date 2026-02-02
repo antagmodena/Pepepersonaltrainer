@@ -297,7 +297,11 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {evaluations.map((ev: any) => {
-                const avg = Math.round(((ev.volley || 0) + (ev.bandeja || 0) + (ev.smash || 0) + (ev.serve || 0) + (ev.defense || 0) + (ev.positioning || 0) + (ev.game_reading || 0) + (ev.shot_selection || 0) + (ev.speed || 0) + (ev.endurance || 0) + (ev.concentration || 0) + (ev.pressure_management || 0)) / 12 * 10);
+                const avgTech = ((ev.tech_volee||0)+(ev.tech_bandeja||0)+(ev.tech_smash||0)+(ev.tech_servizio||0)+(ev.tech_difesa||0))/5;
+                const avgTact = ((ev.tact_posizione||0)+(ev.tact_lettura_gioco||0)+(ev.tact_scelta_colpi||0))/3;
+                const avgPhys = ((ev.phys_velocita||0)+(ev.phys_resistenza||0))/2;
+                const avgMental = ((ev.mental_concentrazione||0)+(ev.mental_gestione_pressione||0))/2;
+                const avg = Math.round((avgTech + avgTact + avgPhys + avgMental) / 4 * 10);
                 return (
                   <Link key={ev.id} href={'/evaluations/' + ev.id} style={{ textDecoration: 'none' }}>
                     <div style={{ padding: '14px', background: '#EFF6FF', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -306,9 +310,9 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                           {new Date(ev.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#DBEAFE', color: '#1D4ED8' }}>Tec {Math.round(((ev.volley||0)+(ev.bandeja||0)+(ev.smash||0)+(ev.serve||0)+(ev.defense||0))/5*10)/10}</span>
-                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#DCFCE7', color: '#16A34A' }}>Tat {Math.round(((ev.positioning||0)+(ev.game_reading||0)+(ev.shot_selection||0))/3*10)/10}</span>
-                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#FEF3C7', color: '#D97706' }}>Fis {Math.round(((ev.speed||0)+(ev.endurance||0))/2*10)/10}</span>
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#DBEAFE', color: '#1D4ED8' }}>Tec {Math.round(avgTech*10)/10}</span>
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#DCFCE7', color: '#16A34A' }}>Tat {Math.round(avgTact*10)/10}</span>
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#FEF3C7', color: '#D97706' }}>Fis {Math.round(avgPhys*10)/10}</span>
                         </div>
                       </div>
                       <div style={{ textAlign: 'center' }}>

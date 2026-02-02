@@ -6,22 +6,11 @@ import Link from 'next/link';
 import RoleSwitcher from './RoleSwitcher';
 
 const c = {
-  emerald: '#059669',
-  emeraldDark: '#047857',
-  emeraldDeep: '#064E3B',
-  emeraldLight: '#D1FAE5',
-  teal: '#0D9488',
-  white: '#FFFFFF',
-  bg: '#F0FDF4',
-  black: '#111827',
-  gray: '#6B7280',
-  lightGray: '#E5E7EB',
-  amber: '#F59E0B',
-  amberLight: '#FEF3C7',
-  red: '#EF4444',
-  redLight: '#FEE2E2',
-  blue: '#3B82F6',
-  blueLight: '#DBEAFE',
+  emerald: '#059669', emeraldDark: '#047857', emeraldDeep: '#064E3B',
+  emeraldLight: '#D1FAE5', teal: '#0D9488', white: '#FFFFFF', bg: '#F0FDF4',
+  black: '#111827', gray: '#6B7280', lightGray: '#E5E7EB',
+  amber: '#F59E0B', amberLight: '#FEF3C7', red: '#EF4444', redLight: '#FEE2E2',
+  blue: '#3B82F6', blueLight: '#DBEAFE', purple: '#8B5CF6',
 };
 
 interface Student {
@@ -33,16 +22,31 @@ interface Student {
   daysSinceActivity: number | null;
 }
 
+interface Lesson {
+  id: string;
+  student_id: string | null;
+  student_name: string;
+  lesson_date: string;
+  lesson_time: string;
+  duration_minutes: number;
+  topic: string | null;
+  status: string;
+}
+
 interface Notification {
-  type: 'completed' | 'warning' | 'info';
+  type: 'completed' | 'warning' | 'info' | 'lesson';
   text: string;
   studentId?: string;
+  href?: string;
 }
 
 export default function CoachDashboard({ firstName }: { firstName: string }) {
   const [students, setStudents] = useState<Student[]>([]);
+  const [todayLessons, setTodayLessons] = useState<Lesson[]>([]);
+  const [tomorrowLessons, setTomorrowLessons] = useState<Lesson[]>([]);
+  const [weekLessons, setWeekLessons] = useState<Lesson[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [stats, setStats] = useState({ totalStudents: 0, activePlans: 0, totalVideos: 0, totalTemplates: 0, pendingRequests: 0 });
+  const [stats, setStats] = useState({ totalStudents: 0, activePlans: 0, totalVideos: 0, lessonsThisWeek: 0, pendingRequests: 0 });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -54,6 +58,7 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Connessioni
     const { data: connections } = await supabase
       .from('coach_student_connections')
       .select('*, student:profiles!coach_student_connections_student_id_fkey(id, full_name)')
@@ -66,46 +71,65 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
       .eq('coach_id', user.id)
       .eq('status', 'pending');
 
+    // Piani
     const { data: plans } = await supabase
       .from('training_plans')
       .select('id, student_id, status, title, updated_at')
       .eq('coach_id', user.id)
       .order('updated_at', { ascending: false });
 
+    // Video count
     const { count: vidCount } = await supabase
       .from('coach_videos')
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', user.id);
 
-    const { count: tmplCount } = await supabase
-      .from('plan_templates')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', user.id);
-
+    // Lezioni
     const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const tomorrow = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
+    const weekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
 
+    const { data: lessons } = await supabase
+      .from('coach_lessons')
+      .select('*, student:profiles!coach_lessons_student_id_fkey(full_name)')
+      .eq('coach_id', user.id)
+      .gte('lesson_date', today)
+      .lte('lesson_date', weekEnd)
+      .eq('status', 'scheduled')
+      .order('lesson_date', { ascending: true })
+      .order('lesson_time', { ascending: true });
+
+    const lessonList: Lesson[] = (lessons || []).map(l => ({
+      id: l.id,
+      student_id: l.student_id,
+      student_name: l.student?.full_name || 'Da assegnare',
+      lesson_date: l.lesson_date,
+      lesson_time: l.lesson_time,
+      duration_minutes: l.duration_minutes || 60,
+      topic: l.topic,
+      status: l.status,
+    }));
+
+    const todayL = lessonList.filter(l => l.lesson_date === today);
+    const tomorrowL = lessonList.filter(l => l.lesson_date === tomorrow);
+
+    // Studenti
     const studentList: Student[] = (connections || []).map(conn => {
       const sid = conn.student?.id;
       const studentPlans = (plans || []).filter(p => p.student_id === sid);
       const active = studentPlans.filter(p => p.status === 'active');
       const completedRecently = studentPlans.some(p =>
-        p.status === 'completed' &&
-        new Date(p.updated_at) > new Date(now.getTime() - 7 * 86400000)
+        p.status === 'completed' && new Date(p.updated_at) > new Date(now.getTime() - 7 * 86400000)
       );
-
       const lastActivity = active[0]?.updated_at || null;
       let daysSinceActivity: number | null = null;
-      if (lastActivity) {
-        daysSinceActivity = Math.floor((now.getTime() - new Date(lastActivity).getTime()) / 86400000);
-      }
+      if (lastActivity) daysSinceActivity = Math.floor((now.getTime() - new Date(lastActivity).getTime()) / 86400000);
 
       return {
-        id: sid || '',
-        full_name: conn.student?.full_name || 'Allievo',
-        activePlans: active.length,
-        lastPlanTitle: active[0]?.title || null,
-        completedRecently,
-        daysSinceActivity,
+        id: sid || '', full_name: conn.student?.full_name || 'Allievo',
+        activePlans: active.length, lastPlanTitle: active[0]?.title || null,
+        completedRecently, daysSinceActivity,
       };
     });
 
@@ -113,38 +137,35 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
       if (a.completedRecently && !b.completedRecently) return -1;
       if (!a.completedRecently && b.completedRecently) return 1;
       if (a.activePlans === 0 && b.activePlans > 0) return -1;
-      if (a.activePlans > 0 && b.activePlans === 0) return 1;
       return a.full_name.localeCompare(b.full_name);
     });
 
+    // Notifiche
     const notifs: Notification[] = [];
+
     const recentCompleted = (plans || []).filter(p =>
-      p.status === 'completed' &&
-      new Date(p.updated_at) > new Date(now.getTime() - 7 * 86400000)
+      p.status === 'completed' && new Date(p.updated_at) > new Date(now.getTime() - 7 * 86400000)
     );
-    recentCompleted.slice(0, 5).forEach(p => {
+    recentCompleted.slice(0, 3).forEach(p => {
       const student = studentList.find(s => s.id === p.student_id);
-      if (student) {
-        notifs.push({ type: 'completed', text: `${student.full_name} ha completato "${p.title}"`, studentId: student.id });
-      }
+      if (student) notifs.push({ type: 'completed', text: `${student.full_name} ha completato "${p.title}"`, studentId: student.id });
     });
 
     const inactive = studentList.filter(s => s.activePlans === 0);
-    if (inactive.length > 0) {
-      notifs.push({ type: 'warning', text: `${inactive.length} alliev${inactive.length === 1 ? 'o' : 'i'} senza piano attivo` });
-    }
+    if (inactive.length > 0) notifs.push({ type: 'warning', text: `${inactive.length} alliev${inactive.length === 1 ? 'o' : 'i'} senza piano attivo` });
 
-    if (pending && pending.length > 0) {
-      notifs.push({ type: 'info', text: `${pending.length} richiest${pending.length === 1 ? 'a' : 'e'} di connessione` });
-    }
+    if (pending && pending.length > 0) notifs.push({ type: 'info', text: `${pending.length} richiest${pending.length === 1 ? 'a' : 'e'} di connessione`, href: '/connections' });
 
     setStudents(studentList);
+    setTodayLessons(todayL);
+    setTomorrowLessons(tomorrowL);
+    setWeekLessons(lessonList);
     setNotifications(notifs);
     setStats({
       totalStudents: studentList.length,
       activePlans: (plans || []).filter(p => p.status === 'active').length,
       totalVideos: vidCount || 0,
-      totalTemplates: tmplCount || 0,
+      lessonsThisWeek: lessonList.length,
       pendingRequests: pending?.length || 0,
     });
     setLoading(false);
@@ -158,9 +179,7 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
     return { bg: c.lightGray, text: c.gray, icon: '⚪', label: 'Nuovo' };
   };
 
-  const filtered = searchQuery
-    ? students.filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : students;
+  const filtered = searchQuery ? students.filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase())) : students;
 
   if (loading) {
     return (
@@ -170,35 +189,116 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
     );
   }
 
+  // === HERO DINAMICO ===
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5);
+  const nextLesson = todayLessons.find(l => l.lesson_time > currentTime) || null;
+  const hasLessonsToday = todayLessons.length > 0;
+  const hasLessonsTomorrow = tomorrowLessons.length > 0;
+  const hasCompletedPlans = notifications.some(n => n.type === 'completed');
+  const hasInactive = notifications.some(n => n.type === 'warning');
+
+  let heroType: 'nextLesson' | 'todayDone' | 'tomorrow' | 'completed' | 'inactive' | 'none' = 'none';
+  if (nextLesson) heroType = 'nextLesson';
+  else if (hasLessonsToday && !nextLesson) heroType = 'todayDone';
+  else if (hasLessonsTomorrow) heroType = 'tomorrow';
+  else if (hasCompletedPlans) heroType = 'completed';
+  else if (hasInactive) heroType = 'inactive';
+
   return (
     <div style={{ minHeight: '100vh', background: c.white, paddingBottom: '100px' }}>
 
-      {/* HEADER EMERALD */}
+      {/* HEADER EMERALD + HERO */}
       <div style={{
         background: `linear-gradient(135deg, ${c.emerald} 0%, ${c.emeraldDark} 50%, ${c.emeraldDeep} 100%)`,
         padding: '48px 20px 24px',
         borderRadius: '0 0 28px 28px',
-        position: 'relative',
-        overflow: 'hidden'
+        position: 'relative', overflow: 'hidden'
       }}>
         <div style={{ position: 'absolute', top: '-30px', right: '-30px', width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
           <div>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>
-              👨‍🏫 Coach
-            </p>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: 500, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>👨‍🏫 Coach</p>
             <h1 style={{ color: c.white, fontSize: '32px', fontWeight: 800 }}>{firstName}</h1>
           </div>
           <RoleSwitcher currentRole="coach" />
         </div>
 
-        <div style={{ display: 'flex', gap: '1px', marginTop: '20px', background: 'rgba(255,255,255,0.1)', borderRadius: '16px', overflow: 'hidden' }}>
+        {/* HERO DINAMICO */}
+        <div style={{ marginTop: '16px' }}>
+          {heroType === 'nextLesson' && nextLesson && (
+            <Link href="/calendar" style={{ textDecoration: 'none' }}>
+              <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '14px', padding: '16px' }}>
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>⏰ PROSSIMA LEZIONE</p>
+                <p style={{ fontSize: '22px', fontWeight: 800, color: c.white, marginBottom: '4px' }}>
+                  {nextLesson.lesson_time.slice(0,5)} — {nextLesson.student_name}
+                </p>
+                {nextLesson.topic && (
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>🎾 {nextLesson.topic}</p>
+                )}
+              </div>
+            </Link>
+          )}
+
+          {heroType === 'todayDone' && (
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '14px', padding: '16px' }}>
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>✅ GIORNATA COMPLETATA</p>
+              <p style={{ fontSize: '20px', fontWeight: 700, color: c.white }}>
+                {todayLessons.length} lezion{todayLessons.length === 1 ? 'e' : 'i'} fatt{todayLessons.length === 1 ? 'a' : 'e'}!
+              </p>
+            </div>
+          )}
+
+          {heroType === 'tomorrow' && (
+            <Link href="/calendar" style={{ textDecoration: 'none' }}>
+              <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '14px', padding: '16px' }}>
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>📅 DOMANI</p>
+                <p style={{ fontSize: '20px', fontWeight: 700, color: c.white }}>
+                  {tomorrowLessons.length} lezion{tomorrowLessons.length === 1 ? 'e' : 'i'} programmat{tomorrowLessons.length === 1 ? 'a' : 'e'}
+                </p>
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', marginTop: '4px' }}>
+                  {tomorrowLessons.map(l => l.student_name.split(' ')[0]).join(', ')}
+                </p>
+              </div>
+            </Link>
+          )}
+
+          {heroType === 'completed' && (
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '14px', padding: '16px' }}>
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>🎉 NOVITÀ</p>
+              <p style={{ fontSize: '20px', fontWeight: 700, color: c.white }}>
+                Allievi hanno completato piani!
+              </p>
+            </div>
+          )}
+
+          {heroType === 'inactive' && (
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '14px', padding: '16px' }}>
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: '8px' }}>⚠️ ATTENZIONE</p>
+              <p style={{ fontSize: '20px', fontWeight: 700, color: c.white }}>
+                Allievi senza piano attivo
+              </p>
+            </div>
+          )}
+
+          {heroType === 'none' && (
+            <Link href="/lessons/new" style={{ textDecoration: 'none' }}>
+              <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '14px', padding: '16px', textAlign: 'center' }}>
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>📅 Nessuna lezione in programma</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>Tap per pianificare</p>
+              </div>
+            </Link>
+          )}
+        </div>
+
+        {/* STATS */}
+        <div style={{ display: 'flex', gap: '1px', marginTop: '16px', background: 'rgba(255,255,255,0.1)', borderRadius: '16px', overflow: 'hidden' }}>
           {[
             { value: stats.totalStudents, label: 'Allievi', emoji: '👥' },
             { value: stats.activePlans, label: 'Piani', emoji: '📋' },
+            { value: stats.lessonsThisWeek, label: 'Lezioni', emoji: '📅' },
             { value: stats.totalVideos, label: 'Video', emoji: '📹' },
-            { value: stats.totalTemplates, label: 'Template', emoji: '📦' },
           ].map((stat, i) => (
             <div key={i} style={{ flex: 1, textAlign: 'center', padding: '12px 4px', background: 'rgba(255,255,255,0.08)' }}>
               <p style={{ fontSize: '22px', fontWeight: 800, color: c.white }}>{stat.value}</p>
@@ -210,29 +310,61 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
 
       <div style={{ padding: '20px' }}>
 
+        {/* AGENDA OGGI */}
+        {todayLessons.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '13px', fontWeight: 700, color: c.gray, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>📅 Oggi</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {todayLessons.map(lesson => {
+                const isPast = lesson.lesson_time < currentTime;
+                return (
+                  <div key={lesson.id} style={{
+                    background: isPast ? '#F9FAFB' : c.white, borderRadius: '14px', padding: '14px 16px',
+                    display: 'flex', alignItems: 'center', gap: '14px',
+                    border: `1px solid ${isPast ? c.lightGray : c.emerald}30`,
+                    opacity: isPast ? 0.6 : 1
+                  }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '12px',
+                      background: isPast ? c.lightGray : `linear-gradient(135deg, ${c.emerald}, ${c.teal})`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: c.white, fontWeight: 800, fontSize: '14px', flexShrink: 0
+                    }}>
+                      {lesson.lesson_time.slice(0,5)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 700, fontSize: '15px', color: c.black }}>{lesson.student_name}</p>
+                      {lesson.topic && <p style={{ fontSize: '13px', color: c.gray, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎾 {lesson.topic}</p>}
+                    </div>
+                    <span style={{ fontSize: '12px', color: c.gray }}>{lesson.duration_minutes}min</span>
+                    {isPast && <span style={{ fontSize: '14px' }}>✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* NOTIFICHE */}
         {notifications.length > 0 && (
           <div style={{ marginBottom: '24px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: c.gray, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>📬 Da fare</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {notifications.map((notif, i) => {
-                const ns = notif.type === 'completed'
-                  ? { bg: c.emeraldLight, border: c.emerald, icon: '✅' }
-                  : notif.type === 'warning'
-                    ? { bg: c.amberLight, border: c.amber, icon: '⚠️' }
-                    : { bg: c.blueLight, border: c.blue, icon: '💬' };
-
+                const ns = notif.type === 'completed' ? { bg: c.emeraldLight, border: c.emerald, icon: '✅' }
+                  : notif.type === 'warning' ? { bg: c.amberLight, border: c.amber, icon: '⚠️' }
+                  : { bg: c.blueLight, border: c.blue, icon: '💬' };
                 return (
-                  <div key={i} onClick={notif.studentId ? () => window.location.href = `/students/${notif.studentId}` : undefined}
+                  <div key={i} onClick={notif.studentId ? () => window.location.href = `/students/${notif.studentId}` : notif.href ? () => window.location.href = notif.href! : undefined}
                     style={{
                       background: ns.bg, borderRadius: '14px', padding: '14px 16px',
                       display: 'flex', alignItems: 'center', gap: '12px',
                       borderLeft: `4px solid ${ns.border}`,
-                      cursor: notif.studentId ? 'pointer' : 'default'
+                      cursor: (notif.studentId || notif.href) ? 'pointer' : 'default'
                     }}>
                     <span style={{ fontSize: '18px' }}>{ns.icon}</span>
                     <p style={{ fontSize: '14px', color: c.black, fontWeight: 500, flex: 1 }}>{notif.text}</p>
-                    {notif.studentId && <span style={{ color: c.gray, fontSize: '18px' }}>›</span>}
+                    {(notif.studentId || notif.href) && <span style={{ color: c.gray, fontSize: '18px' }}>›</span>}
                   </div>
                 );
               })}
@@ -245,10 +377,10 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: c.gray, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>⚡ Azioni rapide</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {[
-              { href: '/plans/new', icon: '📋', label: 'Nuovo Piano', gradient: `linear-gradient(135deg, ${c.emerald}, ${c.teal})` },
-              { href: '/evaluations/new', icon: '📊', label: 'Valutazione', gradient: `linear-gradient(135deg, ${c.blue}, #6366F1)` },
-              { href: '/videos', icon: '📹', label: 'Videoteca', gradient: 'linear-gradient(135deg, #EC4899, #F43F5E)' },
-              { href: '/templates', icon: '📦', label: 'Template', gradient: `linear-gradient(135deg, ${c.amber}, #F97316)` },
+              { href: '/lessons/new', icon: '📅', label: 'Nuova Lezione', gradient: `linear-gradient(135deg, ${c.emerald}, ${c.teal})` },
+              { href: '/plans/new', icon: '📋', label: 'Nuovo Piano', gradient: `linear-gradient(135deg, ${c.blue}, #6366F1)` },
+              { href: '/evaluations/new', icon: '📊', label: 'Valutazione', gradient: `linear-gradient(135deg, ${c.purple}, #A855F7)` },
+              { href: '/connections', icon: '📨', label: 'Invita Allievo', gradient: `linear-gradient(135deg, #25D366, #128C7E)` },
             ].map((a, i) => (
               <Link key={i} href={a.href} style={{ textDecoration: 'none' }}>
                 <div style={{
@@ -285,7 +417,7 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
         )}
 
         {/* I MIEI ALLIEVI */}
-        <div>
+        <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <h2 style={{ fontSize: '13px', fontWeight: 700, color: c.gray, textTransform: 'uppercase', letterSpacing: '0.5px' }}>👥 I miei allievi ({students.length})</h2>
             <Link href="/connections" style={{ fontSize: '13px', color: c.emerald, fontWeight: 600, textDecoration: 'none' }}>Gestisci →</Link>
@@ -302,9 +434,8 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
             <div style={{ background: c.white, borderRadius: '20px', padding: '48px 20px', textAlign: 'center', border: `1px solid ${c.lightGray}` }}>
               <span style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>👥</span>
               <p style={{ color: c.gray, fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>Nessun allievo connesso</p>
-              <p style={{ color: c.gray, fontSize: '13px', marginBottom: '20px' }}>Condividi il tuo codice coach per iniziare</p>
               <Link href="/connections" style={{ textDecoration: 'none' }}>
-                <span style={{ display: 'inline-block', padding: '12px 24px', background: c.emerald, color: c.white, borderRadius: '12px', fontWeight: 700, fontSize: '14px' }}>Gestisci Connessioni →</span>
+                <span style={{ display: 'inline-block', padding: '12px 24px', background: c.emerald, color: c.white, borderRadius: '12px', fontWeight: 700, fontSize: '14px' }}>Invita via WhatsApp →</span>
               </Link>
             </div>
           ) : (
@@ -348,12 +479,12 @@ export default function CoachDashboard({ firstName }: { firstName: string }) {
         </div>
 
         {/* RISORSE */}
-        <div style={{ marginTop: '28px' }}>
+        <div>
           <h2 style={{ fontSize: '13px', fontWeight: 700, color: c.gray, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>📚 Le tue risorse</h2>
           <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
             {[
               { href: '/videos', icon: '📹', label: 'Videoteca', count: stats.totalVideos, color: '#EC4899' },
-              { href: '/templates', icon: '📦', label: 'Template', count: stats.totalTemplates, color: c.amber },
+              { href: '/templates', icon: '📦', label: 'Template', count: null, color: c.amber },
               { href: '/plans', icon: '📋', label: 'Tutti i piani', count: stats.activePlans, color: c.emerald },
               { href: '/evaluations', icon: '📊', label: 'Valutazioni', count: null, color: c.blue },
             ].map((res, i) => (
