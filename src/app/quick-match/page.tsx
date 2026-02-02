@@ -176,7 +176,8 @@ function QuickMatchContent() {
     const locationText = location ? `\n📍 ${location}` : '';
     
     const text = `🎾 Partita di Padel!\n\n${myTeam} vs ${theirTeam}\n📊 ${scoreText}\n${result}${locationText}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(waUrl, '_blank');
   };
 
   const selectPlayer = (name: string) => {

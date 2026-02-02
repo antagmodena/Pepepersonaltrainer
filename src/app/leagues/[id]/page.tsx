@@ -210,7 +210,8 @@ export default function LeagueDetailPage({ params }: { params: Promise<{ id: str
 
   const shareWhatsApp = () => {
     const text = `🎾 Unisciti alla mia lega "${league?.name}" su MyPadelog!\n\n👉 Codice: ${league?.code}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(waUrl, '_blank');
   };
 
   const deleteLeague = async () => {

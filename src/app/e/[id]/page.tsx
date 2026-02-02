@@ -6,35 +6,56 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const supabase = await createClient();
   
-  // Get current user (may be null for non-logged users)
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Load event
+  // Load event + organizer name
   const { data: event } = await supabase
     .from('events')
-    .select(`
-      *,
-      organizer:profiles!events_user_id_fkey(id, full_name)
-    `)
+    .select('*')
     .eq('id', id)
     .single();
 
   if (!event) notFound();
 
+  // Load organizer separately (safer than FK join)
+  const { data: organizer } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .eq('id', event.user_id)
+    .single();
+
   // Load participants
   const { data: participants } = await supabase
     .from('event_participants')
-    .select(`
-      *,
-      user:profiles(id, full_name)
-    `)
+    .select('*')
     .eq('event_id', id)
     .order('slot_position');
 
+  // Load participant profiles separately
+  const userIds = (participants || []).map(p => p.user_id).filter(Boolean);
+  let profiles: Record<string, { id: string; full_name: string }> = {};
+  
+  if (userIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+    
+    (profilesData || []).forEach(p => {
+      profiles[p.id] = p;
+    });
+  }
+
+  // Attach profiles to participants
+  const participantsWithProfiles = (participants || []).map(p => ({
+    ...p,
+    user: p.user_id ? profiles[p.user_id] || null : null
+  }));
+
   return (
     <EventClient 
-      event={event} 
-      participants={participants || []} 
+      event={{ ...event, organizer: organizer || null }} 
+      participants={participantsWithProfiles} 
       currentUserId={user?.id || null}
     />
   );

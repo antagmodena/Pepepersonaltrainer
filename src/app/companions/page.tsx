@@ -362,7 +362,8 @@ export default function CompanionsPage() {
       const leagueName = userLeagues.find(l => l.id === selectedLeague)?.name || 'la lega';
       const dateFormatted = new Date(selectedDate).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
       const text = `🎾 Ehi ${selectedCompanion.name.split(' ')[0]}! Partita ${dateFormatted} alle ${selectedTime}? Ho creato l'evento in "${leagueName}" su MyPadelog!`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(waUrl, '_blank');
       closeModal();
     }
 
@@ -372,7 +373,8 @@ export default function CompanionsPage() {
   const inviteWhatsApp = () => {
     if (!selectedCompanion) return;
     const text = `🎾 Ehi ${selectedCompanion.name.split(' ')[0]}! Ti va una partita di padel? 💪`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(waUrl, '_blank');
   };
 
   const getTimeAgo = (dateStr: string | null) => {

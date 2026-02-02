@@ -136,7 +136,8 @@ export default function OnboardingPage() {
   const shareWhatsApp = () => {
     if (!createdLeague) return;
     const text = `🎾 Unisciti alla mia lega "${createdLeague.name}" su MyPadelog!\n\nCodice: ${createdLeague.code}\n\n👉 Scarica l'app e inserisci il codice!`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(waUrl, '_blank');
   };
 
   const completeOnboarding = async () => {

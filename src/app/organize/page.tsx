@@ -257,7 +257,8 @@ Conferma qui 👇
 ${eventUrl}`;
 
     // Open WhatsApp
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(message);
+    window.open(waUrl, '_blank');
     
     // Redirect to event page
     router.push(`/e/${event.id}`);
