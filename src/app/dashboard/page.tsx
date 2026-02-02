@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import DashboardClient from './DashboardClient';
+import CoachDashboard from './CoachDashboard';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -17,19 +18,22 @@ export default async function DashboardPage() {
   const firstName = profile?.full_name?.split(' ')[0] || 'Campione';
   const activeRole = profile?.active_role || 'student';
 
-  // Leghe utente
+  // ═══════════════ COACH → GREEN DASHBOARD ═══════════════
+  if (activeRole === 'coach') {
+    return <CoachDashboard firstName={firstName} />;
+  }
+
+  // ═══════════════ PLAYER → BLUE DASHBOARD ═══════════════
   const { data: userLeagues } = await supabase
     .from('league_members')
     .select('league_id, points, wins, losses, league:leagues(id, name)')
     .eq('user_id', user.id);
 
-  // Date
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   const currentTime = now.toTimeString().slice(0, 5);
 
-  // Prossimo evento (futuro)
   const { data: nextEvent } = await supabase
     .from('league_events')
     .select('*, league:leagues(id, name)')
@@ -40,7 +44,6 @@ export default async function DashboardPage() {
     .limit(1)
     .single();
 
-  // Evento PASSATO oggi (per CTA "Com'è andata?")
   const { data: pastEventToday } = await supabase
     .from('league_events')
     .select('*, league:leagues(id, name)')
@@ -51,7 +54,6 @@ export default async function DashboardPage() {
     .limit(1)
     .single();
 
-  // Partita già registrata oggi?
   const { data: matchToday } = await supabase
     .from('matches')
     .select('id, score_team1, score_team2, winner_team, league_id')
@@ -65,7 +67,6 @@ export default async function DashboardPage() {
   const isEventToday = nextEvent?.event_date === today;
   const isEventTomorrow = nextEvent?.event_date === tomorrow;
 
-  // Piano dal maestro
   const { data: newPlans } = await supabase
     .from('training_plans')
     .select('*, coach:profiles!training_plans_coach_id_fkey(full_name)')
@@ -74,7 +75,6 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(1);
 
-  // Partite recenti per streak
   const { data: recentMatches } = await supabase
     .from('matches')
     .select('*')
@@ -90,7 +90,6 @@ export default async function DashboardPage() {
     else break;
   }
 
-  // Stats settimana
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const thisWeekMatches = recentMatches?.filter(m => new Date(m.played_at) >= oneWeekAgo) || [];
   const thisWeekWins = thisWeekMatches.filter(m => {
@@ -98,12 +97,9 @@ export default async function DashboardPage() {
     return (inTeam1 && m.winner_team === 1) || (!inTeam1 && m.winner_team === 2);
   }).length;
 
-  // Primary league - estrai id sicuro
   const primaryLeague = userLeagues?.[0];
   let primaryLeagueId: string | null = null;
-  
   if (primaryLeague?.league) {
-    // league può essere array o oggetto, gestiamo entrambi
     const leagueData = Array.isArray(primaryLeague.league) 
       ? primaryLeague.league[0] 
       : primaryLeague.league;

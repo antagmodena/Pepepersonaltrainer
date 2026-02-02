@@ -2,11 +2,9 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 export default function RoleSwitcher({ currentRole }: { currentRole: string }) {
   const [switching, setSwitching] = useState(false);
-  const router = useRouter();
   const supabase = createClient();
 
   const isCoach = currentRole === 'coach';
@@ -23,8 +21,8 @@ export default function RoleSwitcher({ currentRole }: { currentRole: string }) {
       .update({ active_role: newRole })
       .eq('id', user.id);
 
-    router.refresh();
-    setSwitching(false);
+    // Full page reload to sync BottomNav + Dashboard
+    window.location.href = '/dashboard';
   };
 
   return (
@@ -35,42 +33,31 @@ export default function RoleSwitcher({ currentRole }: { currentRole: string }) {
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        background: 'rgba(255,255,255,0.2)',
-        border: 'none',
+        background: 'rgba(255,255,255,0.15)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.2)',
         borderRadius: '30px',
-        padding: '8px 16px',
+        padding: '8px 14px',
         cursor: switching ? 'not-allowed' : 'pointer',
-        opacity: switching ? 0.7 : 1,
+        opacity: switching ? 0.6 : 1,
         transition: 'all 0.2s'
       }}
     >
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px'
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <span style={{
-          width: '28px',
-          height: '28px',
-          background: isCoach ? '#22C55E' : '#0066FF',
+          width: '26px', height: '26px',
+          background: 'rgba(255,255,255,0.25)',
           borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '14px',
-          transition: 'all 0.3s'
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '13px'
         }}>
           {isCoach ? '👨‍🏫' : '🎾'}
         </span>
-        <span style={{
-          color: '#fff',
-          fontSize: '13px',
-          fontWeight: 600
-        }}>
-          {isCoach ? 'Coach' : 'Allievo'}
+        <span style={{ color: '#fff', fontSize: '12px', fontWeight: 600 }}>
+          {switching ? '...' : (isCoach ? 'Coach' : 'Giocatore')}
         </span>
       </div>
-      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
+      <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px' }}>
         → {isCoach ? '🎾' : '👨‍🏫'}
       </span>
     </button>

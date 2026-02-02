@@ -9,6 +9,14 @@ export default async function EvaluationDetailPage({ params }: { params: Promise
   
   if (!user) redirect('/login');
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('active_role')
+    .eq('id', user.id)
+    .single();
+
+  const isCoach = profile?.active_role === 'coach';
+
   const { data: ev } = await supabase
     .from('student_evaluations')
     .select('*, student:profiles!student_evaluations_student_id_fkey(full_name), coach:profiles!student_evaluations_coach_id_fkey(full_name)')
@@ -17,28 +25,54 @@ export default async function EvaluationDetailPage({ params }: { params: Promise
 
   if (!ev) redirect('/evaluations');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Previous evaluation for comparison
+  const { data: prevEvals } = await supabase
+    .from('student_evaluations')
+    .select('*')
+    .eq('student_id', ev.student_id)
+    .eq('coach_id', ev.coach_id)
+    .lt('evaluation_date', ev.evaluation_date)
+    .order('evaluation_date', { ascending: false })
+    .limit(1);
 
-  const isCoach = profile?.role === 'coach';
+  const prev = prevEvals?.[0] || null;
 
-  const RatingBar = ({ label, value }: { label: string; value: number }) => (
-    <div className="mb-3">
-      <div className="flex justify-between mb-1">
-        <span className="text-sm">{label}</span>
-        <span className="font-bold text-[var(--color-blue)]">{value}/10</span>
-      </div>
-      <div className="h-3 bg-[var(--color-light)] rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-[var(--color-azure)] to-[var(--color-blue)] rounded-full"
-          style={{ width: `${value * 10}%` }}
-        />
-      </div>
-    </div>
-  );
+  const accent = isCoach ? '#059669' : '#1A8CD8';
+
+  const sections = [
+    {
+      title: '🎾 Tecnica', color: '#3B82F6', bg: '#DBEAFE',
+      fields: [
+        { label: 'Volée', key: 'tech_volee' },
+        { label: 'Bandeja', key: 'tech_bandeja' },
+        { label: 'Smash', key: 'tech_smash' },
+        { label: 'Servizio', key: 'tech_servizio' },
+        { label: 'Difesa', key: 'tech_difesa' },
+      ]
+    },
+    {
+      title: '🧠 Tattica', color: '#059669', bg: '#D1FAE5',
+      fields: [
+        { label: 'Posizione', key: 'tact_posizione' },
+        { label: 'Lettura gioco', key: 'tact_lettura_gioco' },
+        { label: 'Scelta colpi', key: 'tact_scelta_colpi' },
+      ]
+    },
+    {
+      title: '💪 Fisico', color: '#F59E0B', bg: '#FEF3C7',
+      fields: [
+        { label: 'Velocità', key: 'phys_velocita' },
+        { label: 'Resistenza', key: 'phys_resistenza' },
+      ]
+    },
+    {
+      title: '💭 Mentale', color: '#8B5CF6', bg: '#EDE9FE',
+      fields: [
+        { label: 'Concentrazione', key: 'mental_concentrazione' },
+        { label: 'Gestione pressione', key: 'mental_gestione_pressione' },
+      ]
+    },
+  ];
 
   const avgTech = Math.round(((ev.tech_volee || 0) + (ev.tech_bandeja || 0) + (ev.tech_smash || 0) + (ev.tech_servizio || 0) + (ev.tech_difesa || 0)) / 5);
   const avgTact = Math.round(((ev.tact_posizione || 0) + (ev.tact_lettura_gioco || 0) + (ev.tact_scelta_colpi || 0)) / 3);
@@ -46,85 +80,139 @@ export default async function EvaluationDetailPage({ params }: { params: Promise
   const avgMental = Math.round(((ev.mental_concentrazione || 0) + (ev.mental_gestione_pressione || 0)) / 2);
   const overall = Math.round((avgTech + avgTact + avgPhys + avgMental) / 4);
 
+  const getDelta = (key: string) => {
+    if (!prev) return null;
+    const current = (ev as any)[key] || 0;
+    const previous = (prev as any)[key] || 0;
+    const diff = current - previous;
+    if (diff === 0) return null;
+    return diff;
+  };
+
   return (
-    <div className="min-h-screen p-4 pb-20">
-      <div className="max-w-lg mx-auto">
+    <div style={{ minHeight: '100vh', background: '#fff', paddingBottom: '100px' }}>
+
+      {/* Header */}
+      <div style={{
+        background: isCoach
+          ? 'linear-gradient(135deg, #059669 0%, #047857 50%, #064E3B 100%)'
+          : 'linear-gradient(135deg, #1A8CD8 0%, #1570B0 100%)',
+        padding: '48px 20px 24px',
+        borderRadius: '0 0 28px 28px'
+      }}>
+        <Link href="/evaluations" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '15px' }}>← Valutazioni</Link>
         
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/evaluations" className="text-[var(--color-blue)] font-medium">
-            ← Indietro
-          </Link>
-          <h1 className="text-xl font-bold text-[var(--color-dark-blue)]">Valutazione</h1>
-          <div className="w-16"></div>
-        </div>
-
-        <div className="header-gradient mb-6">
-          <h2 className="text-xl font-bold">{isCoach ? ev.student?.full_name : ev.coach?.full_name}</h2>
-          <p className="text-blue-100">
-            {new Date(ev.evaluation_date).toLocaleDateString('it-IT', { 
-              day: 'numeric', month: 'long', year: 'numeric' 
-            })}
-          </p>
-          <div className="mt-3 bg-white/20 rounded-xl p-3 inline-block">
-            <span className="text-3xl font-bold">{overall}</span>
-            <span className="text-blue-100">/10 Media</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '12px' }}>
+          <div>
+            <h1 style={{ color: '#fff', fontSize: '26px', fontWeight: 800 }}>
+              {isCoach ? ev.student?.full_name : ev.coach?.full_name}
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginTop: '4px' }}>
+              {new Date(ev.evaluation_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+          <div style={{
+            width: '60px', height: '60px', borderRadius: '50%',
+            background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexDirection: 'column'
+          }}>
+            <span style={{ color: '#fff', fontSize: '24px', fontWeight: 800 }}>{overall}</span>
+            <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '9px' }}>MEDIA</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 mb-6">
-          <div className="card text-center p-3">
-            <div className="text-2xl font-bold text-blue-600">{avgTech}</div>
-            <div className="text-xs text-[var(--color-gray)]">Tecnica</div>
-          </div>
-          <div className="card text-center p-3">
-            <div className="text-2xl font-bold text-green-600">{avgTact}</div>
-            <div className="text-xs text-[var(--color-gray)]">Tattica</div>
-          </div>
-          <div className="card text-center p-3">
-            <div className="text-2xl font-bold text-orange-600">{avgPhys}</div>
-            <div className="text-xs text-[var(--color-gray)]">Fisico</div>
-          </div>
-          <div className="card text-center p-3">
-            <div className="text-2xl font-bold text-purple-600">{avgMental}</div>
-            <div className="text-xs text-[var(--color-gray)]">Mentale</div>
-          </div>
+        {/* Summary bars */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+          {[
+            { label: 'TEC', value: avgTech, color: '#3B82F6' },
+            { label: 'TAT', value: avgTact, color: '#059669' },
+            { label: 'FIS', value: avgPhys, color: '#F59E0B' },
+            { label: 'MEN', value: avgMental, color: '#8B5CF6' },
+          ].map((a, i) => (
+            <div key={i} style={{ flex: 1, background: 'rgba(255,255,255,0.12)', borderRadius: '12px', padding: '10px 4px', textAlign: 'center' }}>
+              <p style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>{a.value}</p>
+              <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)', marginTop: '2px' }}>{a.label}</p>
+            </div>
+          ))}
         </div>
+      </div>
 
-        <div className="card mb-4">
-          <h3 className="section-title">🎾 Tecnica</h3>
-          <RatingBar label="Volée" value={ev.tech_volee || 0} />
-          <RatingBar label="Bandeja" value={ev.tech_bandeja || 0} />
-          <RatingBar label="Smash" value={ev.tech_smash || 0} />
-          <RatingBar label="Servizio" value={ev.tech_servizio || 0} />
-          <RatingBar label="Difesa" value={ev.tech_difesa || 0} />
-        </div>
+      <div style={{ padding: '20px' }}>
 
-        <div className="card mb-4">
-          <h3 className="section-title">🧠 Tattica</h3>
-          <RatingBar label="Posizione in campo" value={ev.tact_posizione || 0} />
-          <RatingBar label="Lettura del gioco" value={ev.tact_lettura_gioco || 0} />
-          <RatingBar label="Scelta dei colpi" value={ev.tact_scelta_colpi || 0} />
-        </div>
-
-        <div className="card mb-4">
-          <h3 className="section-title">💪 Fisico</h3>
-          <RatingBar label="Velocità" value={ev.phys_velocita || 0} />
-          <RatingBar label="Resistenza" value={ev.phys_resistenza || 0} />
-        </div>
-
-        <div className="card mb-4">
-          <h3 className="section-title">💭 Mentale</h3>
-          <RatingBar label="Concentrazione" value={ev.mental_concentrazione || 0} />
-          <RatingBar label="Gestione pressione" value={ev.mental_gestione_pressione || 0} />
-        </div>
-
-        {ev.notes && (
-          <div className="card">
-            <h3 className="section-title">📝 Note</h3>
-            <p className="text-[var(--color-gray)]">{ev.notes}</p>
+        {prev && (
+          <div style={{
+            background: '#F0FDF4', borderRadius: '14px', padding: '12px 16px',
+            marginBottom: '20px', border: '1px solid #D1FAE530',
+            display: 'flex', alignItems: 'center', gap: '10px'
+          }}>
+            <span style={{ fontSize: '16px' }}>📈</span>
+            <p style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>
+              Confronto con valutazione del {new Date(prev.evaluation_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+            </p>
           </div>
         )}
 
+        {/* Detail sections */}
+        {sections.map((section, si) => (
+          <div key={si} style={{
+            background: '#fff', borderRadius: '16px', padding: '16px',
+            border: '1px solid #E5E7EB', marginBottom: '14px'
+          }}>
+            <p style={{
+              fontSize: '15px', fontWeight: 800, color: section.color,
+              marginBottom: '14px', padding: '6px 12px',
+              background: section.bg, borderRadius: '10px', display: 'inline-block'
+            }}>
+              {section.title}
+            </p>
+
+            {section.fields.map(field => {
+              const val = (ev as any)[field.key] || 0;
+              const delta = getDelta(field.key);
+
+              return (
+                <div key={field.key} style={{ marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{field.label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {delta !== null && (
+                        <span style={{
+                          fontSize: '12px', fontWeight: 700,
+                          color: delta > 0 ? '#059669' : '#EF4444',
+                          background: delta > 0 ? '#D1FAE5' : '#FEE2E2',
+                          padding: '2px 6px', borderRadius: '6px'
+                        }}>
+                          {delta > 0 ? '+' : ''}{delta}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '16px', fontWeight: 800, color: section.color }}>{val}/10</span>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{ height: '8px', background: '#F3F4F6', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: `${val * 10}%`,
+                      background: section.color, borderRadius: '4px',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* Notes */}
+        {ev.notes && (
+          <div style={{
+            background: '#F9FAFB', borderRadius: '16px', padding: '16px',
+            border: '1px solid #E5E7EB'
+          }}>
+            <p style={{ fontSize: '13px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>📝 Note del coach</p>
+            <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.6 }}>{ev.notes}</p>
+          </div>
+        )}
       </div>
     </div>
   );
