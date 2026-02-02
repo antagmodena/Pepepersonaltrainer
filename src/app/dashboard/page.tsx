@@ -15,6 +15,7 @@ export default async function DashboardPage() {
     .single();
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Campione';
+  const activeRole = profile?.active_role || 'student';
 
   // Leghe utente
   const { data: userLeagues } = await supabase
@@ -123,6 +124,7 @@ export default async function DashboardPage() {
       thisWeekMatches={thisWeekMatches.length}
       thisWeekWins={thisWeekWins}
       primaryLeagueId={primaryLeagueId}
+      activeRole={activeRole}
     />
   );
 }

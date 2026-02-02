@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import RoleSwitcher from './RoleSwitcher';
 
 // Colori - BLU DOMINANTE
 const colors = {
@@ -29,6 +30,7 @@ interface Props {
   thisWeekMatches: number;
   thisWeekWins: number;
   primaryLeagueId: string | null;
+  activeRole: string;
 }
 
 // Bottone con feedback
@@ -145,6 +147,7 @@ export default function DashboardClient({
   thisWeekMatches,
   thisWeekWins,
   primaryLeagueId,
+  activeRole,
 }: Props) {
 
   // === LOGICA CTA CONTESTUALE ===
@@ -185,8 +188,13 @@ export default function DashboardClient({
         borderRadius: '0 0 24px 24px',
         marginBottom: '20px'
       }}>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '15px', marginBottom: '4px' }}>Ciao</p>
-        <h1 style={{ color: colors.white, fontSize: '32px', fontWeight: 800, marginBottom: '16px' }}>{firstName}</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '15px', marginBottom: '4px' }}>Ciao</p>
+            <h1 style={{ color: colors.white, fontSize: '32px', fontWeight: 800 }}>{firstName}</h1>
+          </div>
+          <RoleSwitcher currentRole={activeRole} />
+        </div>
         
         {/* Hero content dentro l'header blu */}
         {heroType === 'played' && matchToday && (
