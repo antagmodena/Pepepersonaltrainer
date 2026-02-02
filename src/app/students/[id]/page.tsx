@@ -60,6 +60,23 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
     .order('date', { ascending: false })
     .limit(5);
 
+  const { data: evaluations } = await supabase
+    .from('student_evaluations')
+    .select('*')
+    .eq('student_id', id)
+    .eq('coach_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const { data: completedPlans } = await supabase
+    .from('training_plans')
+    .select('*')
+    .eq('student_id', id)
+    .eq('coach_id', user.id)
+    .eq('status', 'completed')
+    .order('updated_at', { ascending: false })
+    .limit(5);
+
   const colors = { 
     gradient: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)', 
     primary: '#22C55E', 
@@ -119,8 +136,8 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         {/* Quick Stats */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '12px',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '10px',
           marginBottom: '20px'
         }}>
           <div style={{
@@ -152,6 +169,16 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           }}>
             <p style={{ fontSize: '24px', fontWeight: 800, color: '#F59E0B' }}>{tournaments?.length || 0}</p>
             <p style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase' }}>Tornei</p>
+          </div>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '16px',
+            textAlign: 'center',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+          }}>
+            <p style={{ fontSize: '24px', fontWeight: 800, color: '#8B5CF6' }}>{evaluations?.length || 0}</p>
+            <p style={{ fontSize: '11px', color: '#94A3B8', textTransform: 'uppercase' }}>Valutazioni</p>
           </div>
         </div>
 
@@ -248,6 +275,76 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                       </p>
                     </div>
                     <span style={{ color: '#22C55E' }}>›</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Valutazioni */}
+        {evaluations && evaluations.length > 0 && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e' }}>📊 Valutazioni</h2>
+              <Link href={'/evaluations/new?student=' + id} style={{ fontSize: '13px', color: '#3B82F6', fontWeight: 600, textDecoration: 'none' }}>+ Nuova</Link>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {evaluations.map((ev: any) => {
+                const avg = Math.round(((ev.volley || 0) + (ev.bandeja || 0) + (ev.smash || 0) + (ev.serve || 0) + (ev.defense || 0) + (ev.positioning || 0) + (ev.game_reading || 0) + (ev.shot_selection || 0) + (ev.speed || 0) + (ev.endurance || 0) + (ev.concentration || 0) + (ev.pressure_management || 0)) / 12 * 10);
+                return (
+                  <Link key={ev.id} href={'/evaluations/' + ev.id} style={{ textDecoration: 'none' }}>
+                    <div style={{ padding: '14px', background: '#EFF6FF', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <p style={{ fontWeight: 600, color: '#1a1a2e', fontSize: '14px' }}>
+                          {new Date(ev.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#DBEAFE', color: '#1D4ED8' }}>Tec {Math.round(((ev.volley||0)+(ev.bandeja||0)+(ev.smash||0)+(ev.serve||0)+(ev.defense||0))/5*10)/10}</span>
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#DCFCE7', color: '#16A34A' }}>Tat {Math.round(((ev.positioning||0)+(ev.game_reading||0)+(ev.shot_selection||0))/3*10)/10}</span>
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '6px', background: '#FEF3C7', color: '#D97706' }}>Fis {Math.round(((ev.speed||0)+(ev.endurance||0))/2*10)/10}</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ fontSize: '22px', fontWeight: 800, color: avg >= 70 ? '#16A34A' : avg >= 50 ? '#F59E0B' : '#EF4444' }}>{avg}%</p>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Piani Completati */}
+        {completedPlans && completedPlans.length > 0 && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
+          }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a2e', marginBottom: '16px' }}>
+              ✅ Piani Completati
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {completedPlans.map((plan: any) => (
+                <Link key={plan.id} href={'/plans/' + plan.id} style={{ textDecoration: 'none' }}>
+                  <div style={{ padding: '14px', background: '#F0FDF4', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{ fontWeight: 600, color: '#1a1a2e', fontSize: '14px' }}>{plan.title}</p>
+                      <p style={{ fontSize: '12px', color: '#64748B' }}>
+                        Completato il {new Date(plan.updated_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <span style={{ color: '#22C55E', fontSize: '18px' }}>✓</span>
                   </div>
                 </Link>
               ))}
